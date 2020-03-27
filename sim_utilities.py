@@ -5,6 +5,9 @@ import time
 import matplotlib.pyplot as plt
 
 from bandit_definitions import *
+from algorithms import *
+
+from joblib import Parallel, delayed
 
 ################# running the simuations from a data_dict:
 # data_dict={
@@ -22,22 +25,28 @@ def playTtimes(bandit, alg, T):
         alg.play_once(bandit)
     return
 
-def average_regret(alg, bandit, T, N_test=100, verb=False, *, fair_reg):
-    regrets = []
-    for i in range(N_test):
-        if verb:
-            if not(i % 5):
-                print("Run number ", i, " / ", N_test)
-        alg.reset()
-        bandit.reset()
-        playTtimes(bandit, alg, T)
-        if fair_reg:
-            regrets.append(bandit.cum_fair_regret)
-        else:
-            regrets.append(bandit.cum_regret)
-    return regrets
+def one_regret(alg, bandit, T, *, fair_reg):
+    alg.reset()
+    bandit.reset()
+    playTtimes(bandit, alg, T)
+    if fair_reg:
+        return bandit.cum_fair_regret
+    else:
+        return bandit.cum_regret
 
-def launch(data_dict, *, fair_reg):
+# def average_regret(alg, bandit, T, N_test=100, verb=False, *, fair_reg, n_jobs=1):
+#     regrets = []
+#     for i in range(N_test):
+#         # if verb:
+#         #     if not(i % 5):
+#         #         print("Run number ", i, " / ", N_test)
+#         regrets.append(one_regret)
+#     return regrets
+
+def average_regret(alg, bandit, T, N_test=100, verb=False, n_jobs=1, *, fair_reg):
+    return Parallel(n_jobs=n_jobs)(delayed(one_regret)(alg, bandit, T, fair_reg=fair_reg) for _ in range(N_test))
+
+def launch(data_dict, verb=False, n_jobs=1,*, fair_reg):
     if 'seed' in data_dict.keys():
         np.random.seed(data_dict['seed'])
     T, band_list = data_dict['T'], data_dict['band_list']
@@ -49,9 +58,9 @@ def launch(data_dict, *, fair_reg):
         time_comp = np.zeros(len(alg_list))
         for i, alg in enumerate(alg_list):
             t0  = time.time()
-            temp = np.array(average_regret(alg, band, T, N_test=Ntest(T), verb=True, fair_reg=fair_reg))
+            temp = np.array(average_regret(alg, band, T, N_test=Ntest(T), verb=verb, n_jobs=n_jobs, fair_reg=fair_reg))
             time_comp[i] = (time.time() - t0)
-            print(alg.label, ' took ', time_comp[i],' total, i.e. ', time_comp[i]/Ntest(T), ' per run')
+            print(alg.label, ' took ', time_comp[i],' total, i.e., ', time_comp[i]/Ntest(T), ' per run')
             mean_regs[i] = np.mean(temp, axis=0)
             var_regs[i] = np.var(temp, axis=0)
 
@@ -74,7 +83,12 @@ def save_data_dict(data_dict, folder):
         pickle.dump(data_dict, f)
 
 def plot_and_save(data_dict, save_data=False, skip_algs=[], log_scale=True, show_vars=True, **kwargs):
-    colors = plt.get_cmap('tab20').colors
+    colors = plt.get_cmap('tab10').colors
+    T = data_dict['T']
+    if 't_slice' in kwargs:
+        t_slice = kwargs['t_slice']
+    else:
+        t_slice = range(T)
     nplots = len(data_dict['band_list'])
     fig, axes = plt.subplots(nrows=1, ncols=nplots, figsize=(16, 4), sharey='all')
     if nplots >= 2: # weird : axes[j] does not work when there is only 1 subplot
@@ -88,10 +102,10 @@ def plot_and_save(data_dict, save_data=False, skip_algs=[], log_scale=True, show
                     continue
                 if log_scale:
                     axes[j].set_xscale("log")#, nonposx='clip')
-                axes[j].plot(mean_regs[i, :], label=alg.label, color=colors[i])
+                axes[j].plot(mean_regs[i, t_slice], label=str(i)+": "+alg.label, color=colors[i])
                 if show_vars:
-                    axes[j].plot(mean_regs[i, :]+ np.sqrt(var_regs[i]), '--', alpha=0.3, color=colors[i])
-                    axes[j].plot(mean_regs[i, :]- np.sqrt(var_regs[i]), '--', alpha=0.3, color=colors[i])
+                    axes[j].plot(mean_regs[i, t_slice]+ np.sqrt(var_regs[i]), '--', alpha=0.3, color=colors[i])
+                    axes[j].plot(mean_regs[i, t_slice]- np.sqrt(var_regs[i]), '--', alpha=0.3, color=colors[i])
             axes[j].legend()
     else:
         mean_regs, var_regs = data_dict['results'][0]
@@ -103,10 +117,10 @@ def plot_and_save(data_dict, save_data=False, skip_algs=[], log_scale=True, show
                 continue
             if log_scale:
                 axes.set_xscale("log")#, nonposx='clip')
-            axes.plot(mean_regs[i, :], label=alg.label, color=colors[i])
+            axes.plot(mean_regs[i, t_slice], label=str(i)+": "+alg.label, color=colors[i])
             if show_vars:
-                axes.plot(mean_regs[i, :]+ np.sqrt(var_regs[i]), '--', alpha=0.3, color=colors[i])
-                axes.plot(mean_regs[i, :]- np.sqrt(var_regs[i]), '--', alpha=0.3, color=colors[i])
+                axes.plot(mean_regs[i, t_slice]+ np.sqrt(var_regs[i]), '--', alpha=0.3, color=colors[i])
+                axes.plot(mean_regs[i, t_slice]- np.sqrt(var_regs[i]), '--', alpha=0.3, color=colors[i])
         axes.legend()
 
     if save_data:

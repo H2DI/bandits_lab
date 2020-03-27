@@ -1,5 +1,5 @@
 import numpy as np
-import bandit_definitions as band_defs
+from bandit_definitions import *
 
 class AnonAlg():
     def __init__(self, K, M, cdistrib, label=""):
@@ -46,7 +46,7 @@ class AsFair(AnonAlg):
     def __init__(self, K, M, cdistrib, alg, label="", **params):
         super().__init__(K, M, cdistrib, label=label)
         d = K*M
-        self.C = band_defs.AnonConstraints(K, M, cdistrib)
+        self.C = AnonConstraints(K, M, cdistrib)
         self.sub_fair_alg = alg(d, self.C, **params)
 
     def choose_arm(self):
