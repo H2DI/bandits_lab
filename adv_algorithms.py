@@ -130,32 +130,12 @@ class AdaHedgeExp3(Exp3):
         self.cum_mix_gap = 0
         self.mix_gaps = []
 
-class FTRL_w_reg(FTRLCanvas):
-    """
-        FTRL with a regularizer
-    """
-    def __init__(self, K, regularizer, M=0, **params):
-        super().__init__(K, M=M, **params)
-        self.regularizer = regularizer
-
-    def choose_p(self):
-        if np.isinf(self.lr_value):
-            return np.ones(self.K)/self.K
-        else:
-            return self.regularizer.reg_leader(-self.cum_reward_estimates, self.lr_value)
-
-    def lr_update(self):
-        self.lr_value = np.sqrt(1 / self.alg_time)
-
-class AdaFTRLTsallis(FTRL_w_reg):
+class AdaFTRLTsallis(FTRLCanvas):
     """
         Requires that rewards be smaller than M.
     """
     def __init__(self, K, M=0, sym=False, proxy=False, **params):# Needs rewards smaller than M
-        if sym:
-            super().__init__(K, opt_ut.Tsallis_1_2_sym(K), M=M, **params)
-        else:
-            super().__init__(K, opt_ut.Tsallis_1_2(K), M=M, **params)
+        super().__init__(K, M=M, **params)
         self.sym = sym
         self.proxy = proxy
         self.cum_mix_gap = 0
@@ -165,6 +145,16 @@ class AdaFTRLTsallis(FTRL_w_reg):
         else:
             self.D = 2*np.sqrt(self.K)
 
+    def choose_p(self):
+        if np.isinf(self.lr_value):
+            return np.ones(self.K)/self.K
+        else:
+            if self.sym:
+                regularizer = opt_ut.Tsallis_1_2_sym(self.K)
+            else:
+                regularizer = opt_ut.Tsallis_1_2(self.K)
+            return regularizer.reg_leader(-self.cum_reward_estimates, self.lr_value)
+
     def _mix_gap_comp(self, l , p, eta):
         """
             Computes the generalized mixability gap
@@ -172,8 +162,7 @@ class AdaFTRLTsallis(FTRL_w_reg):
         pvar, lvar, etavar = cp.Parameter(self.K, nonneg=True), cp.Parameter(self.K), cp.Parameter(nonneg=True)
         x = cp.Variable(self.K)
 
-        tsallx = -2*cp.sum(cp.sqrt(x))
-        tsallp = -2*cp.sum(cp.sqrt(pvar))
+        tsallx, tsallp = -2*cp.sum(cp.sqrt(x)), -2*cp.sum(cp.sqrt(pvar))
         gradtsallp = - 1 / cp.sqrt(pvar)
         breg = tsallx - tsallp - gradtsallp * (x - pvar)
 
@@ -215,6 +204,13 @@ class AdaFTRLTsallis(FTRL_w_reg):
         super().reset()
         self.cum_mix_gap = 0
         self.mix_gaps = []
+
+class FTRLTsallis(AdaFTRLTsallis):
+    def __init__(self, K, M=0, sym=False, **params):# Needs rewards smaller than M
+        super().__init__(K, M=M, sym=sym, proxy=False, **params)
+
+    def lr_update(self):
+        self.lr_value = np.sqrt(1 / self.alg_time)
 
 #############################################
 #############################################

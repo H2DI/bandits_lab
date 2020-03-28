@@ -6,6 +6,7 @@ import matplotlib.pyplot as plt
 
 from bandit_definitions import *
 from algorithms import *
+from copy import deepcopy
 
 from joblib import Parallel, delayed
 
@@ -20,52 +21,25 @@ from joblib import Parallel, delayed
 #         'results':None,
 #     }
 
+
+############################# Playing algorithms
+
 def playTtimes(bandit, alg, T):
     for t in range(T):
         alg.play_once(bandit)
     return
 
-def one_regret(alg, bandit, T, *, fair_reg):
-    alg.reset()
-    bandit.reset()
+def one_regret(a, b, T, *, fair_reg):
+    alg = deepcopy(a)
+    bandit = deepcopy(b)
     playTtimes(bandit, alg, T)
     if fair_reg:
         return bandit.cum_fair_regret
     else:
         return bandit.cum_regret
 
-# def average_regret(alg, bandit, T, N_test=100, verb=False, *, fair_reg, n_jobs=1):
-#     regrets = []
-#     for i in range(N_test):
-#         # if verb:
-#         #     if not(i % 5):
-#         #         print("Run number ", i, " / ", N_test)
-#         regrets.append(one_regret)
-#     return regrets
-
-def average_regret(alg, bandit, T, N_test=100, verb=False, n_jobs=1, *, fair_reg):
+def n_regret(alg, bandit, T, N_test=100, verb=False, n_jobs=1, *, fair_reg):
     return Parallel(n_jobs=n_jobs)(delayed(one_regret)(alg, bandit, T, fair_reg=fair_reg) for _ in range(N_test))
-
-def launch(data_dict, verb=False, n_jobs=1,*, fair_reg):
-    if 'seed' in data_dict.keys():
-        np.random.seed(data_dict['seed'])
-    T, band_list = data_dict['T'], data_dict['band_list']
-    alg_list, Ntest = data_dict['alg_list'], data_dict['Ntest']
-    results = []
-    for band in band_list:
-        mean_regs = np.zeros((len(alg_list), T))
-        var_regs = np.zeros((len(alg_list), T))
-        time_comp = np.zeros(len(alg_list))
-        for i, alg in enumerate(alg_list):
-            t0  = time.time()
-            temp = np.array(average_regret(alg, band, T, N_test=Ntest(T), verb=verb, n_jobs=n_jobs, fair_reg=fair_reg))
-            time_comp[i] = (time.time() - t0)
-            print(alg.label, ' took ', time_comp[i],' total, i.e., ', time_comp[i]/Ntest(T), ' per run')
-            mean_regs[i] = np.mean(temp, axis=0)
-            var_regs[i] = np.var(temp, axis=0)
-
-        results.append((mean_regs, var_regs))
-    data_dict['results'] = results
 
 
 ############################# Saving utilities:
@@ -77,12 +51,70 @@ def uniquify(path):
         counter += 1
     return path
 
-def save_data_dict(data_dict, folder):
-    path = uniquify(folder+data_dict['short_name']+'.pkl')
+def save_data_dict(data_dict, uniquify=False):
+    folder=data_dict['folder']
+    if uniquify:
+        path = uniquify(folder+data_dict['short_name']+'.pkl')
+    else:
+        path = folder+data_dict['short_name']+'.pkl'
     with open(path, 'wb') as f:
         pickle.dump(data_dict, f)
 
+#def load_data_dict(path):
+
+
+
+# def launch(data_dict, verb=False, n_jobs=1, checkpoints=True, *, fair_reg):
+#     if 'seed' in data_dict.keys():
+#         np.random.seed(data_dict['seed'])
+#     T, band_list = data_dict['T'], data_dict['band_list']
+#     alg_list, Ntest = data_dict['alg_list'], data_dict['Ntest']
+#     n_algs = len(alg_list)
+#     results = []
+#     for band in band_list:
+#         mean_regs = np.zeros((n_algs, T))
+#         var_regs = np.zeros((n_algs, T))
+#         time_comp = np.zeros(n_algs)
+#         for i, alg in enumerate(alg_list):
+#             t0  = time.time()
+#             temp = np.array(average_regret(alg, band, T, N_test=Ntest(T), verb=verb, n_jobs=n_jobs, fair_reg=fair_reg))
+#             time_comp[i] = (time.time() - t0)
+#             print(alg.label, ' took ', time_comp[i],' total, i.e., ', time_comp[i]/Ntest(T), ' per run')
+#             mean_regs[i] = np.mean(temp, axis=0)
+#             var_regs[i] = np.var(temp, axis=0)
+#         results.append((mean_regs, var_regs))
+#         data_dict['results'] = results
+#         if checkpoints:
+#             save_data_dict(data_dict, uniquify=False)
+
+def launch(data_dict, verb=False, n_jobs=1, checkpoints=True, *, fair_reg):
+    if 'seed' in data_dict.keys():
+        np.random.seed(data_dict['seed'])
+    T, band_list = data_dict['T'], data_dict['band_list']
+    alg_list, Ntest = data_dict['alg_list'], data_dict['Ntest']
+    n_algs = len(alg_list)
+    results = []
+    for i, band in enumerate(band_list):
+        time_comp = []
+        results.append([])
+        for j, alg in enumerate(alg_list):
+            t0  = time.time()
+            temp = np.array(n_regret(alg, band, T, N_test=Ntest(T), verb=verb, n_jobs=n_jobs, fair_reg=fair_reg))
+            time_comp.append((time.time() - t0))
+            print(alg.label, ' took ', time_comp[j],' total, i.e., ', time_comp[j]/Ntest(T), ' per run')
+            mean_reg = np.mean(temp, axis=0)
+            var_reg = np.var(temp, axis=0)
+            results[-1].append((mean_reg, var_reg))
+            data_dict['results'] = results
+            if checkpoints:
+                print('saved')
+                save_data_dict(data_dict, uniquify=False)
+    print('len(results): ', len(results))
+    print('len(results[0]): ', len(results[0]))
+
+
 def plot_and_save(data_dict, save_data=False, skip_algs=[], log_scale=True, show_vars=True, **kwargs):
+    """ Used to hard save the data """
     colors = plt.get_cmap('tab10').colors
     T = data_dict['T']
     if 't_slice' in kwargs:
@@ -91,40 +123,28 @@ def plot_and_save(data_dict, save_data=False, skip_algs=[], log_scale=True, show
         t_slice = range(T)
     nplots = len(data_dict['band_list'])
     fig, axes = plt.subplots(nrows=1, ncols=nplots, figsize=(16, 4), sharey='all')
-    if nplots >= 2: # weird : axes[j] does not work when there is only 1 subplot
-        for j, _ in enumerate(data_dict['band_list']):
-            mean_regs, var_regs = data_dict['results'][j]
-            if ('rescale' in kwargs.keys()) & kwargs['rescale']:
-                mean_regs = mean_regs / data_dict['scales'][j]
-                var_regs = var_regs / np.square(data_dict['scales'][j])
-            for i, alg in enumerate(data_dict['alg_list']):
-                if i in skip_algs:
-                    continue
-                if log_scale:
-                    axes[j].set_xscale("log")#, nonposx='clip')
-                axes[j].plot(mean_regs[i, t_slice], label=str(i)+": "+alg.label, color=colors[i])
-                if show_vars:
-                    axes[j].plot(mean_regs[i, t_slice]+ np.sqrt(var_regs[i]), '--', alpha=0.3, color=colors[i])
-                    axes[j].plot(mean_regs[i, t_slice]- np.sqrt(var_regs[i]), '--', alpha=0.3, color=colors[i])
-            axes[j].legend()
-    else:
-        mean_regs, var_regs = data_dict['results'][0]
-        if ('rescale' in kwargs.keys()) & kwargs['rescale']:
-            mean_regs /= data_dict['scales'][0]
-            var_regs /= data_dict['scales'][0]
-        for i, alg in enumerate(data_dict['alg_list']):
-            if i in skip_algs:
+    for i, _ in enumerate(data_dict['band_list']):#if nplots >= 2: # weird : axes[i] does not work when there is only 1 subplot
+        if nplots >= 2:
+            ax = axes[i]
+        else:
+            ax = axes
+        for j, alg in enumerate(data_dict['alg_list']):
+            if j in skip_algs:
                 continue
+            mean_reg, var_reg = data_dict['results'][i][j]
+            if ('rescale' in kwargs.keys()) & kwargs['rescale']:
+                mean_reg = np.array(mean_reg) / data_dict['scales'][i]
+                var_reg = np.array(var_reg) / np.square(data_dict['scales'][i])
             if log_scale:
-                axes.set_xscale("log")#, nonposx='clip')
-            axes.plot(mean_regs[i, t_slice], label=str(i)+": "+alg.label, color=colors[i])
+                ax.set_xscale("log")#, nonposx='clip')
+            ax.plot(mean_reg[t_slice], label=str(j)+": "+alg.label, color=colors[j])
             if show_vars:
-                axes.plot(mean_regs[i, t_slice]+ np.sqrt(var_regs[i]), '--', alpha=0.3, color=colors[i])
-                axes.plot(mean_regs[i, t_slice]- np.sqrt(var_regs[i]), '--', alpha=0.3, color=colors[i])
-        axes.legend()
+                ax.plot(mean_reg[t_slice]+ np.sqrt(var_reg), '--', alpha=0.3, color=colors[j])
+                ax.plot(mean_reg[t_slice]- np.sqrt(var_reg), '--', alpha=0.3, color=colors[j])
+        ax.legend()
 
     if save_data:
         plt.tight_layout()
-        save_data_dict(data_dict, 'figures/')
+        save_data_dict(data_dict)
         path = uniquify('figures/'+data_dict['short_name']+'.pdf')
         plt.savefig(path, format='pdf')

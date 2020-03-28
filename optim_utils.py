@@ -23,7 +23,6 @@ class Regularizer():
         self.problem = None
         self._configure()
 
-
     def evaluate(self, p):
         return self.cvx_function(p).value
 
