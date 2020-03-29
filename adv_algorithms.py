@@ -40,9 +40,8 @@ class AdvAlg():
 
 class FTRLCanvas(AdvAlg):
     """
-    This is a generic canvas for FTRL/OMD algorithms with any adaptive
-    learning-rate scheme. (Not sure this is appropriate for OMD as currently
-    this only stores the cumulative rewards of every arms.)
+    This is a generic canvas for FTRL algorithms with any adaptive
+    learning-rate scheme.
 
     For this to be complete, need to implement the functions choose_p,
     lr_update and estimate_method (although there is a default value).
@@ -86,9 +85,8 @@ class FTRLCanvas(AdvAlg):
 
 class Exp3(FTRLCanvas):
     """
-    The vanilla Exp3 algorithm with the usual learning rate scheme.
+    The vanilla Exp3 algorithm with the usual learning rate scheme : log(K) / (K *sqrt(T))
     """
-
     def choose_p(self):
         if np.isinf(self.lr_value):
             p = np.ones(self.K) / self.K
@@ -181,7 +179,7 @@ class AdaFTRLTsallis(FTRLCanvas):
     def lr_update(self):
         p, arm, reward_est = self.played_ps[-1], self.played_arms[-1], self.indiv_reward_estimates[-1]
         pi = p[arm]
-        l = self.M - pi*reward_est[arm]
+        l = self.M - pi*reward_est[arm] #true reward
         if np.isinf(self.lr_value):
                 mix_gap = max(reward_est) - np.dot(p, reward_est)
         else:
@@ -204,6 +202,57 @@ class AdaFTRLTsallis(FTRLCanvas):
         super().reset()
         self.cum_mix_gap = 0
         self.mix_gaps = []
+
+class FastAdaFTRLTsallis(AdaFTRLTsallis):
+    """Implements newton's method to compute the updates instead of using cvxpy"""
+    def __init__(self, K, M=0, proxy=True, **params):
+        super().__init__(K, M=M, proxy=proxy, **params)
+        self.c = M+1
+
+    def _comp_p(self, losses):
+        c = self.c
+        count = 0
+        while(count < 100):
+            w = 2.  / np.square(c + losses)
+            # print('w :', w)
+            # print('c :', c)
+            # print('np.sum(w)', np.sum(w))
+            c1 = c + (np.sum(w) - 1) / (np.sum(np.power(w, 3/2)))
+            if np.isclose(c, c1) and (np.isclose(np.sum(w), 1)):
+                self.c = c1
+                #print('counter :', count)
+                # print('p',  p)
+                # print('c', c)
+                return w
+            else:
+                c = c1
+                count += 1
+        print("Newton to find p in FTRL Tsallis has failed to converge")
+
+    def choose_p(self):
+        if self.alg_time < self.K:
+            p = np.zeros(self.K)
+            p[self.alg_time] = 1
+            #print(p)
+            return p
+        elif np.isinf(self.lr_value):
+            return np.ones(self.K)/self.K
+        else:
+            # print('learning rate :', self.lr_value)
+            # print('reward estimates :', self.cum_reward_estimates)
+            # print('product', -self.lr_value * self.cum_reward_estimates)
+            return self._comp_p(-self.lr_value * self.cum_reward_estimates)
+
+    def reset(self):
+        super().reset()
+        self.c = 0
+
+class FastFTRLTsallis(FastAdaFTRLTsallis):
+    def __init__(self, K, M=0, sym=False, **params):# Needs rewards smaller than M
+        super().__init__(K, M=M, proxy=False, **params)
+
+    def lr_update(self):
+        self.lr_value = np.sqrt(1 / self.alg_time)
 
 class FTRLTsallis(AdaFTRLTsallis):
     def __init__(self, K, M=0, sym=False, **params):# Needs rewards smaller than M

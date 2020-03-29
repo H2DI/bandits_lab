@@ -15,7 +15,7 @@ from joblib import Parallel, delayed
 #         'name':'Long Name',
 #         'short_name':'short_name',
 #         'T':T,
-#         'Ntest':Ntest,
+#         'N_tests':N_tests,
 #         'band_list':band_list,
 #         'alg_list':alg_list,
 #         'results':None,
@@ -60,38 +60,16 @@ def save_data_dict(data_dict, uniquify=False):
     with open(path, 'wb') as f:
         pickle.dump(data_dict, f)
 
-#def load_data_dict(path):
-
-
-
-# def launch(data_dict, verb=False, n_jobs=1, checkpoints=True, *, fair_reg):
-#     if 'seed' in data_dict.keys():
-#         np.random.seed(data_dict['seed'])
-#     T, band_list = data_dict['T'], data_dict['band_list']
-#     alg_list, Ntest = data_dict['alg_list'], data_dict['Ntest']
-#     n_algs = len(alg_list)
-#     results = []
-#     for band in band_list:
-#         mean_regs = np.zeros((n_algs, T))
-#         var_regs = np.zeros((n_algs, T))
-#         time_comp = np.zeros(n_algs)
-#         for i, alg in enumerate(alg_list):
-#             t0  = time.time()
-#             temp = np.array(average_regret(alg, band, T, N_test=Ntest(T), verb=verb, n_jobs=n_jobs, fair_reg=fair_reg))
-#             time_comp[i] = (time.time() - t0)
-#             print(alg.label, ' took ', time_comp[i],' total, i.e., ', time_comp[i]/Ntest(T), ' per run')
-#             mean_regs[i] = np.mean(temp, axis=0)
-#             var_regs[i] = np.var(temp, axis=0)
-#         results.append((mean_regs, var_regs))
-#         data_dict['results'] = results
-#         if checkpoints:
-#             save_data_dict(data_dict, uniquify=False)
+def load_data_dict(path):
+    with open(path, 'rb') as f:
+        data_dict = pickle.load(f)
+    return data_dict
 
 def launch(data_dict, verb=False, n_jobs=1, checkpoints=True, *, fair_reg):
     if 'seed' in data_dict.keys():
         np.random.seed(data_dict['seed'])
     T, band_list = data_dict['T'], data_dict['band_list']
-    alg_list, Ntest = data_dict['alg_list'], data_dict['Ntest']
+    alg_list, N_tests = data_dict['alg_list'], data_dict['N_tests']
     n_algs = len(alg_list)
     results = []
     for i, band in enumerate(band_list):
@@ -99,9 +77,10 @@ def launch(data_dict, verb=False, n_jobs=1, checkpoints=True, *, fair_reg):
         results.append([])
         for j, alg in enumerate(alg_list):
             t0  = time.time()
-            temp = np.array(n_regret(alg, band, T, N_test=Ntest(T), verb=verb, n_jobs=n_jobs, fair_reg=fair_reg))
+            N_test = N_tests[i]
+            temp = np.array(n_regret(alg, band, T, N_test=N_test, verb=verb, n_jobs=n_jobs, fair_reg=fair_reg))
             time_comp.append((time.time() - t0))
-            print(alg.label, ' took ', time_comp[j],' total, i.e., ', time_comp[j]/Ntest(T), ' per run')
+            print(alg.label, ' took ', time_comp[j],' total, i.e., ', time_comp[j]/N_test, ' per run')
             mean_reg = np.mean(temp, axis=0)
             var_reg = np.var(temp, axis=0)
             results[-1].append((mean_reg, var_reg))
@@ -109,13 +88,11 @@ def launch(data_dict, verb=False, n_jobs=1, checkpoints=True, *, fair_reg):
             if checkpoints:
                 print('saved')
                 save_data_dict(data_dict, uniquify=False)
-    print('len(results): ', len(results))
-    print('len(results[0]): ', len(results[0]))
 
 
 def plot_and_save(data_dict, save_data=False, skip_algs=[], log_scale=True, show_vars=True, **kwargs):
     """ Used to hard save the data """
-    colors = plt.get_cmap('tab10').colors
+    colors = plt.get_cmap('tab20').colors
     T = data_dict['T']
     if 't_slice' in kwargs:
         t_slice = kwargs['t_slice']
@@ -123,8 +100,8 @@ def plot_and_save(data_dict, save_data=False, skip_algs=[], log_scale=True, show
         t_slice = range(T)
     nplots = len(data_dict['band_list'])
     fig, axes = plt.subplots(nrows=1, ncols=nplots, figsize=(16, 4), sharey='all')
-    for i, _ in enumerate(data_dict['band_list']):#if nplots >= 2: # weird : axes[i] does not work when there is only 1 subplot
-        if nplots >= 2:
+    for i, _ in enumerate(data_dict['band_list']):
+        if nplots >= 2:#if nplots >= 2: # weird : axes[i] does not work when there is only 1 subplot
             ax = axes[i]
         else:
             ax = axes
@@ -137,10 +114,10 @@ def plot_and_save(data_dict, save_data=False, skip_algs=[], log_scale=True, show
                 var_reg = np.array(var_reg) / np.square(data_dict['scales'][i])
             if log_scale:
                 ax.set_xscale("log")#, nonposx='clip')
-            ax.plot(mean_reg[t_slice], label=str(j)+": "+alg.label, color=colors[j])
+            ax.plot(t_slice, mean_reg[t_slice], label=str(j)+": "+alg.label, color=colors[j])
             if show_vars:
-                ax.plot(mean_reg[t_slice]+ np.sqrt(var_reg), '--', alpha=0.3, color=colors[j])
-                ax.plot(mean_reg[t_slice]- np.sqrt(var_reg), '--', alpha=0.3, color=colors[j])
+                ax.plot(t_slice, mean_reg[t_slice]+ np.sqrt(var_reg[t_slice]), '--', alpha=0.3, color=colors[j])
+                ax.plot(t_slice, mean_reg[t_slice]- np.sqrt(var_reg[t_slice]), '--', alpha=0.3, color=colors[j])
         ax.legend()
 
     if save_data:
