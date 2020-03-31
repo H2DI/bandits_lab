@@ -57,29 +57,3 @@ class Tsallis_1_2_sym(Regularizer):
         def f(x):
             return -cp.sum(cp.sqrt(x) + cp.sqrt(1-x))
         super().__init__(d, f, **params)
-
-
-def mix_gap_comp(l, p, K, eta=1, i=0):
-    """
-    Conjecture : is smaller than etavar * l^2 / sqrt(pi) when l > 0
-    """
-    pvar, lvar, etavar = cp.Parameter(K, nonneg=True), cp.Parameter(), cp.Parameter(nonneg=True)
-    x = cp.Variable(K)
-
-    tsallx = -2*cp.sum(cp.sqrt(x))
-    tsallp = -2*cp.sum(cp.sqrt(pvar))
-    gradtsallp = - 1 / cp.sqrt(pvar)
-    breg = tsallx - tsallp - gradtsallp * (x - pvar)
-
-    obj =  lvar * ( 1  - x[i] / pvar[i]) - 1 / etavar * breg
-
-    pvar.value = p
-    lvar.value = l
-    etavar.value = eta
-    #print(obj.curvature)
-    prob = cp.Problem(cp.Maximize(obj),
-           [cp.sum(x) == 1,
-            x >= 0])
-
-    prob.solve()
-    return x.value, obj.value

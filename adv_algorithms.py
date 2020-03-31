@@ -1,5 +1,5 @@
 import numpy as np
-import bandit_definitions as band_defs
+from bandit_definitions import *
 import optim_utils as opt_ut
 import cvxpy as cp
 
@@ -28,7 +28,7 @@ class AdvAlg():
 
     def play_once(self, bandit):
         p = self.choose_p()
-        arm =  band_defs.draw_from_p(p, self.K)
+        arm =  draw_from_p(p, self.K)
         reward = bandit.play_arm(arm)
         self.update(p, arm, reward)
 
@@ -62,7 +62,10 @@ class FTRLCanvas(AdvAlg):
         """
          y_hat = M + (y_At - M ) / p_At
         """
-        assert(p[arm] > 0)
+        try:
+            assert(p[arm] > 0)
+        except ValueError:
+            print(p, arm, p[arm], np.sum(p), np.isclose(p, np.sum(p)))
         r = self.M * np.ones(self.K)
         r[arm] += (reward - self.M)/ p[arm]
         return r
@@ -99,204 +102,3 @@ class Exp3(FTRLCanvas):
 
     def lr_update(self):
         self.lr_value = np.sqrt(np.log(self.K) / (self.K*self.alg_time))
-
-class AdaHedgeExp3(Exp3):
-    """
-    The AdaHedge learning rate update applied to the EXP3 algorithm.
-    """
-    def __init__(self, K, M=0, **params):
-        super().__init__(K, M=M, **params)
-        self.cum_mix_gap = 0
-        self.D = np.log(self.K)
-        self.mix_gaps = []
-
-    def lr_update(self):
-        p, arm, reward_est = self.played_ps[-1], self.played_arms[-1], self.indiv_reward_estimates[-1]
-        if np.isinf(self.lr_value):
-            mix_gap = max(reward_est) - np.dot(p, reward_est)
-        else:
-            mix_gap = -np.dot(p, reward_est) + 1 / self.lr_value * np.log(np.dot(p, np.exp(self.lr_value * reward_est)))
-        self.cum_mix_gap += mix_gap
-        self.mix_gaps.append(mix_gap)
-        if np.isclose(self.cum_mix_gap, 0):
-            self.lr_value = np.inf
-        else:
-            self.lr_value = self.D / self.cum_mix_gap
-
-    def reset(self):
-        super().reset()
-        self.cum_mix_gap = 0
-        self.mix_gaps = []
-
-class AdaFTRLTsallis(FTRLCanvas):
-    """
-        Requires that rewards be smaller than M.
-    """
-    def __init__(self, K, M=0, sym=False, proxy=False, **params):# Needs rewards smaller than M
-        super().__init__(K, M=M, **params)
-        self.sym = sym
-        self.proxy = proxy
-        self.cum_mix_gap = 0
-        self.mix_gaps = []
-        if self.sym:
-            self.D = np.sqrt(self.K)
-        else:
-            self.D = 2*np.sqrt(self.K)
-
-    def choose_p(self):
-        if np.isinf(self.lr_value):
-            return np.ones(self.K)/self.K
-        else:
-            if self.sym:
-                regularizer = opt_ut.Tsallis_1_2_sym(self.K)
-            else:
-                regularizer = opt_ut.Tsallis_1_2(self.K)
-            return regularizer.reg_leader(-self.cum_reward_estimates, self.lr_value)
-
-    def _mix_gap_comp(self, l , p, eta):
-        """
-            Computes the generalized mixability gap
-        """
-        pvar, lvar, etavar = cp.Parameter(self.K, nonneg=True), cp.Parameter(self.K), cp.Parameter(nonneg=True)
-        x = cp.Variable(self.K)
-
-        tsallx, tsallp = -2*cp.sum(cp.sqrt(x)), -2*cp.sum(cp.sqrt(pvar))
-        gradtsallp = - 1 / cp.sqrt(pvar)
-        breg = tsallx - tsallp - gradtsallp * (x - pvar)
-
-        objective =  lvar * (p -x) - 1 / etavar * breg
-
-        pvar.value = p
-        lvar.value = l
-        etavar.value = eta
-        prob = cp.Problem(cp.Maximize(objective),
-               [cp.sum(x) == 1,
-                x >= 0])
-
-        prob.solve()
-        return x.value, objective.value
-
-    def lr_update(self):
-        p, arm, reward_est = self.played_ps[-1], self.played_arms[-1], self.indiv_reward_estimates[-1]
-        pi = p[arm]
-        l = self.M - pi*reward_est[arm] #true reward
-        if np.isinf(self.lr_value):
-                mix_gap = max(reward_est) - np.dot(p, reward_est)
-        else:
-            if self.sym:
-                assert(self.proxy)
-                mix_gap = min(l, self.lr_value * np.power(pi, -1/2) * np.power(min(1, (1 - pi)/pi), 3/2) * np.square(l))
-            else:
-                if self.proxy:
-                    mix_gap = min(l, self.lr_value * np.power(pi, -1/2) * np.square(l))
-                else:
-                    p_opt, mix_gap = self._mix_gap_comp(-reward_est, p, self.lr_value)
-        self.mix_gaps.append(mix_gap)
-        self.cum_mix_gap += mix_gap
-        if np.isclose(self.cum_mix_gap, 0):
-            self.lr_value = np.inf
-        else:
-            self.lr_value = self.D / self.cum_mix_gap
-
-    def reset(self):
-        super().reset()
-        self.cum_mix_gap = 0
-        self.mix_gaps = []
-
-class FastAdaFTRLTsallis(AdaFTRLTsallis):
-    """Implements newton's method to compute the updates instead of using cvxpy"""
-    def __init__(self, K, M=0, proxy=True, **params):
-        super().__init__(K, M=M, proxy=proxy, **params)
-        self.c = M+1
-
-    def _comp_p(self, losses):
-        c = self.c
-        count = 0
-        while(count < 100):
-            w = 2.  / np.square(c + losses)
-            # print('w :', w)
-            # print('c :', c)
-            # print('np.sum(w)', np.sum(w))
-            c1 = c + (np.sum(w) - 1) / (np.sum(np.power(w, 3/2)))
-            if np.isclose(c, c1) and (np.isclose(np.sum(w), 1)):
-                self.c = c1
-                #print('counter :', count)
-                # print('p',  p)
-                # print('c', c)
-                return w
-            else:
-                c = c1
-                count += 1
-        print("Newton to find p in FTRL Tsallis has failed to converge")
-
-    def choose_p(self):
-        if self.alg_time < self.K:
-            p = np.zeros(self.K)
-            p[self.alg_time] = 1
-            #print(p)
-            return p
-        elif np.isinf(self.lr_value):
-            return np.ones(self.K)/self.K
-        else:
-            # print('learning rate :', self.lr_value)
-            # print('reward estimates :', self.cum_reward_estimates)
-            # print('product', -self.lr_value * self.cum_reward_estimates)
-            return self._comp_p(-self.lr_value * self.cum_reward_estimates)
-
-    def reset(self):
-        super().reset()
-        self.c = 0
-
-class FastFTRLTsallis(FastAdaFTRLTsallis):
-    def __init__(self, K, M=0, sym=False, **params):# Needs rewards smaller than M
-        super().__init__(K, M=M, proxy=False, **params)
-
-    def lr_update(self):
-        self.lr_value = np.sqrt(1 / self.alg_time)
-
-class FTRLTsallis(AdaFTRLTsallis):
-    def __init__(self, K, M=0, sym=False, **params):# Needs rewards smaller than M
-        super().__init__(K, M=M, sym=sym, proxy=False, **params)
-
-    def lr_update(self):
-        self.lr_value = np.sqrt(1 / self.alg_time)
-
-#############################################
-#############################################
-#############################################
-#############################################
-#############################################
-
-class AdaHedgeExp3Bounded(Exp3):#Obsolete :
-    """
-    Assumes the rewards are smaller than M. Obsolete: no need to use the proxy for upper bounded rewards.
-    """
-    def __init__(self, K, M=0, **params):
-        super().__init__(K, M=M, **params)
-        self.cum_mix_gap = 0
-        self.D = np.log(self.K)
-        self.true_mix_gaps = []
-        self.mix_gaps = []
-
-    def lr_update(self):
-        p, arm, reward = self.played_ps[-1], self.played_arms[-1], self.individual_rewards[-1]
-        if np.isinf(self.lr_value):
-            mix_gap = max(0, (self.M - reward))
-            true_mix_gap = max((self.M - reward), (1- self.K)*(self.M - reward))
-        else:
-            pi = p[arm]
-            mix_gap = max(0, min(self.M - reward, self.lr_value * np.square(self.M - reward) / pi))
-            true_mix_gap = (self.M - reward) + (1 / self.lr_value) * np.log( (1 - pi) + pi*np.exp(-self.lr_value * (self.M - reward) / pi))
-        self.mix_gaps.append(mix_gap)
-        self.true_mix_gaps.append(true_mix_gap)
-        self.cum_mix_gap += mix_gap
-        if np.isclose(self.cum_mix_gap, 0):
-            self.lr_value = np.inf
-        else:
-            self.lr_value = self.D / self.cum_mix_gap
-
-    def reset(self):
-        super().reset()
-        self.cum_mix_gap = 0
-        self.true_mix_gaps = []
-        self.mix_gaps = []
