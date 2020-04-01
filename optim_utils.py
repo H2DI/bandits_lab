@@ -1,14 +1,13 @@
 import numpy as np
 import cvxpy as cp
 
-def in_simplex(p):
-    delta = 0.00001
-    return np.all(p >=-delta) and np.isclose(np.sum(p), 1)
+def in_simplex(p, tol=1e-8):
+    return np.all(p >=-tol) and np.isclose(np.sum(p), atol=tol)
 
-def euclidean_simplex_proj(q):
-    if in_simplex(q):
+def euclidean_simplex_proj(q, tol=1e-8):
+    if in_simplex(q, tol=tol):
         return q
-    temp = np.maximum(q, 0.0000001)
+    temp = np.maximum(q, 1e-8)
     return temp / np.sum(temp)
 
 class Regularizer():
@@ -39,7 +38,6 @@ class Regularizer():
     def reg_leader(self, losses, lr):
         """
             Gradient descent over the simplex to minimize f(p) = dot(l, p) + f(p)
-            Done in two steps : unconstrained optimization then projection
         """
         self.L.value = losses
         self.lr.value = lr

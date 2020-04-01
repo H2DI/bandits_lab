@@ -28,11 +28,8 @@ alg_list = [
     UCB(K, sig=10, label="UCB \sigma = 10"),
     UCB(K, sig=100, label="UCB \sigma = 100"),
     Exp3(K , M=M, label="Vanilla Exp3"),
-    AdaHedgeExp3(K, M=M, label="True AdaExp3"),
     UCB(K, sig=0, label="FTL"),
     RandomPlay(K, label="random play"),
-    FastAdaFTRLTsallis(K, M=M, sym=False, proxy=True, speed=.5, label="FastAdaFTRL Tsallis prox"),
-    FastFTRLTsallis(K, M=M, speed=.5, label="Fast FTRL Tsallis eta=1/sqrt(t)"),
     ]
 
 #For FastFTRLTsallis convergence does not really depend on speed: always take .5 and will converge is scale < 10
