@@ -1,17 +1,16 @@
 import numpy as np
 import scipy.optimize as opt
 
+
+class ConvergenceError(Exception):
+    pass
+
 def draw_from_p(p, K):
-    delta = 0.00001
-    assert (len(p)==K)
-    assert np.isclose(np.sum(p), 1)
-    assert (all(p>=-delta))
-    a = np.random.rand()
-    sum = 0
-    for i, p_a in enumerate(p):
-        sum += p_a
-        if a <= sum:
-            return i
+    try:
+        return np.random.choice(K, p=p)
+    except ValueError:
+        print('Value Error in p :', p, np.sum(p))
+        raise ConvergenceError
 
 class AdvObliviousBand():
     """
@@ -44,7 +43,7 @@ class AdvObliviousBand():
         self.played_arms = []
         self.observed_rewards = []
         self.cumulative_received_reward = 0
-        self.all_comparator_rewards = np.zeros(self.K) #unobserved
+        self.all_comparator_rewards = np.zeros(self.K)
         self.cum_regret = []
 
 class DBand():#Discrete bandit
@@ -60,7 +59,7 @@ class DBand():#Discrete bandit
         self.point_regret = []
         self.cum_regret = []
 
-    def _compute_reward(self, a):# returns a couple (mean, actual_reward)
+    def _compute_reward(self, a):
         if self.noise=="gaussian":
             return self.mus[a] + np.random.normal(0, 0.25)
         elif self.noise=="bernoulli":
