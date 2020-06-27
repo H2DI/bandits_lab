@@ -7,3 +7,4 @@ cachedir
 */.DS_Store
 script_*
 data_saves/*
+notebooks/loc_*
