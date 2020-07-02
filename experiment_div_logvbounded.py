@@ -1,7 +1,4 @@
 import numpy as np
-import matplotlib.pyplot as plt
-import pickle
-import time
 
 import bandits_lab.algorithms as algs
 import bandits_lab.bandit_definitions as bands
@@ -26,10 +23,10 @@ n_tests = 75
 
 K = 3
 
-l = 0.1
-ls = [0] + [l for _ in range(K - 1)]
+low = 0.1
+lows = [0] + [low for _ in range(K - 1)]
 constraints_list = [
-    (ls[i], 1, np.array([1 * (j == i) for j in range(K)])) for i in range(K)
+    (lows[i], 1, np.array([1 * (j == i) for j in range(K)])) for i in range(K)
 ]
 setP = bands.PolytopeConstraints(K, constraints_list)
 

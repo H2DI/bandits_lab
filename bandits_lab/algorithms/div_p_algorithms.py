@@ -74,20 +74,6 @@ class DivIndexPolicies(DivPAlg):
         N = self.alg_n_plays[arm]
         self.mean_rewards[arm] = (self.mean_rewards[arm] * (N - 1) + reward) / N
 
-        if self.noise == "gaussian":
-            self.indices = self.mean_rewards + self.sig * np.sqrt(
-                2 * np.log(self.alg_time) / np.maximum(self.alg_n_plays, 1)
-            )
-        elif self.noise == "bernoulli":
-            self.indices = np.array(
-                [
-                    ucb_kl(
-                        self.mean_rewards[a], max(self.alg_n_plays[a], 1), self.alg_time
-                    )
-                    for a in range(self.K)
-                ]
-            )
-
     def reset(self):
         super().reset()
         self.alg_n_plays = np.zeros(self.K)
@@ -156,7 +142,8 @@ class DivPEpsGreedy(DivPAlg):
 
 class L1OFUL(DivPAlg):
     """
-    Treats the diversity-preserving bandit problem as a linear bandit problem
+    Treats the diversity-preserving bandit problem as a linear bandit problem and plays
+    the L1-OFUL algorithm.
     """
 
     def __init__(self, K, setP, label="", **params):
@@ -238,7 +225,6 @@ class L1OFUL(DivPAlg):
         self.det_vt = 1
         self.vt_inv = np.identity(K)
 
-        # used for the confidence intervals (i.e. at the corners of the simplex
         self.sq_pts = np.ones(K)
 
 

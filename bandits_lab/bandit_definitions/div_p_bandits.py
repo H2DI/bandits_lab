@@ -123,9 +123,11 @@ class PolytopeConstraints(DivConstraints):
         return R
 
 
-class SphereConstraints(
-    DivConstraints
-):  # works only when the sphere is completely included in the simplex
+class SphereConstraints(DivConstraints):
+    """
+     Works only when the sphere is completely included in the simplex
+    """
+
     def __init__(self, K, r):
         self.K = K
         self.r = r
@@ -185,7 +187,9 @@ class DivPBand(DBand):
     def play_p(self, p):
         assert self.setP.check(p)
         arm = draw_from_p(p, self.K)
-        reward = self.play_arm(arm)
+        reward = self._compute_reward(arm)
+        self.played_arms.append(arm)
+        self.observed_rewards.append(reward)
         self.played_ps += [p]
 
         self.point_regret += [self.m_p - np.dot(p, self.mus)]
