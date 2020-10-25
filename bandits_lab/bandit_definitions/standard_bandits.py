@@ -13,7 +13,7 @@ class DBand:
         self.time = 0
 
         if self.noise == "bernoulli":
-            assert all(0 <= self.mus <= 1)
+            assert (self.mus <= 1).all() and (self.mus >= 0).all()
 
         self.played_arms = []
         self.observed_rewards = []

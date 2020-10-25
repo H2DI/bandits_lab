@@ -160,6 +160,50 @@ class AdaHedgeExp3(Exp3):
         self.mix_gaps = []
 
 
+class AdaHedgeExp3ExtraExp(AdaHedgeExp3):
+    def __init__(self, K, **params):
+        super().__init__(K, M=0, **params)
+        self.beta = np.sqrt(10 * K * np.ln(K))
+        self.qs = []
+
+    def choose_p(self):
+        q = super().choose_p()
+        self.qs.append(q)
+        if self.alg_time < self.K:
+            p = np.zeros(self.K)
+            p[self.alg_time] = 1
+        else:
+            gamma_t = min(0.5, self.beta / np.sqrt(self.alg_time))
+            p = (1 - gamma_t) * q + gamma_t * np.ones(self.K)
+        return p
+
+    def lr_update(self):
+        p, _, reward_est = (
+            self.qs[-1],
+            self.played_arms[-1],
+            self.indiv_reward_estimates[-1],
+        )
+        if np.isinf(self.lr_value):
+            mix_gap = max(reward_est) - np.dot(p, reward_est)
+        else:
+            mix_gap = -np.dot(p, reward_est) + 1 / self.lr_value * np.log(
+                np.dot(p, np.exp(self.lr_value * reward_est))
+            )
+        self.cum_mix_gap += mix_gap
+        self.mix_gaps.append(mix_gap)
+        if np.isclose(self.cum_mix_gap, 0):
+            self.lr_value = np.inf
+        else:
+            self.lr_value = self.D / self.cum_mix_gap
+
+    def update(self, p, arm, reward):
+        super().update(p, arm, reward)
+        if self.alg_time == self.K:
+            self.M = np.mean(self.individual_rewards)
+            self.cum_reward_est = np.zeros(self.K)
+            self.indiv_reward_estimates = []
+
+
 class AdaFTRLTsallis(FTRLCanvas):
     """
         Requires that rewards be smaller than M.
