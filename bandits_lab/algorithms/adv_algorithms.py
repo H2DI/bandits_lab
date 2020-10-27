@@ -112,12 +112,14 @@ class Exp3(FTRLCanvas):
     """
 
     def choose_p(self):
-        if np.isinf(self.lr_value):
+        if self.lr_value > 5e4:
             p = np.ones(self.K) / self.K
         else:
             logweights = self.lr_value * self.cum_reward_estimates
             temp = np.exp(logweights - np.max(logweights))
             p = temp / np.sum(temp)
+        # print("Learning rate : ", self.lr_value)
+        # print("Chosen p : ", p)
         return p
 
     def lr_update(self):
@@ -141,7 +143,7 @@ class AdaHedgeExp3(Exp3):
             self.played_arms[-1],
             self.indiv_reward_estimates[-1],
         )
-        if np.isinf(self.lr_value):
+        if any(np.isinf(np.exp(self.lr_value * reward_est))):
             mix_gap = max(reward_est) - np.dot(p, reward_est)
         else:
             mix_gap = -np.dot(p, reward_est) + 1 / self.lr_value * np.log(
@@ -163,7 +165,7 @@ class AdaHedgeExp3(Exp3):
 class AdaHedgeExp3ExtraExp(AdaHedgeExp3):
     def __init__(self, K, **params):
         super().__init__(K, M=0, **params)
-        self.beta = np.sqrt(10 * K * np.ln(K))
+        self.beta = np.sqrt(10 * K * np.log(K))
         self.qs = []
 
     def choose_p(self):
@@ -174,34 +176,47 @@ class AdaHedgeExp3ExtraExp(AdaHedgeExp3):
             p[self.alg_time] = 1
         else:
             gamma_t = min(0.5, self.beta / np.sqrt(self.alg_time))
-            p = (1 - gamma_t) * q + gamma_t * np.ones(self.K)
+            p = (1 - gamma_t) * q + gamma_t * np.ones(self.K) / self.K
         return p
 
     def lr_update(self):
+        if self.alg_time < self.K:
+            return
         p, _, reward_est = (
             self.qs[-1],
             self.played_arms[-1],
             self.indiv_reward_estimates[-1],
         )
-        if np.isinf(self.lr_value):
+        if any(np.isinf(np.exp(self.lr_value * reward_est))):
             mix_gap = max(reward_est) - np.dot(p, reward_est)
         else:
+            # print("lr_value * reward_est : ", self.lr_value * reward_est)
+            # print(
+            #     "exp(lr_value * rew_est) : ", np.exp(self.lr_value * reward_est),
+            # )
             mix_gap = -np.dot(p, reward_est) + 1 / self.lr_value * np.log(
                 np.dot(p, np.exp(self.lr_value * reward_est))
             )
         self.cum_mix_gap += mix_gap
         self.mix_gaps.append(mix_gap)
-        if np.isclose(self.cum_mix_gap, 0):
+        # print("mix gap ", mix_gap)
+        # print("cum_mix_gap :", self.cum_mix_gap)
+        # print("time :", self.alg_time)
+        if np.isclose(self.cum_mix_gap, 0, 1e-10):
             self.lr_value = np.inf
         else:
             self.lr_value = self.D / self.cum_mix_gap
 
     def update(self, p, arm, reward):
         super().update(p, arm, reward)
-        if self.alg_time == self.K:
+        if self.alg_time == self.K - 1:
             self.M = np.mean(self.individual_rewards)
-            self.cum_reward_est = np.zeros(self.K)
+            self.cum_reward_estimates = np.zeros(self.K)
             self.indiv_reward_estimates = []
+
+    def reset(self):
+        super().reset()
+        self.qs = []
 
 
 class AdaFTRLTsallis(FTRLCanvas):

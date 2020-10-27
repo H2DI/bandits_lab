@@ -121,6 +121,8 @@ class MaxUCB(UCB_a):
 
     def reset(self):
         super().reset()
+        self.max_observed_reward = 0
+        self.min_observed_reward = 0
         self.sig = self.sig_init
 
 

@@ -138,7 +138,7 @@ def plot_and_save(
     **kwargs,
 ):
     """ Tailored to the range adaptation experiments """
-    colors = plt.get_cmap("tab10").colors
+    colors = plt.get_cmap("tab20").colors
     T = data_dict["T"]
     if "t_slice" in kwargs:
         t_slice = kwargs["t_slice"]
