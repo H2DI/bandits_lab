@@ -83,8 +83,9 @@ class MOSS_a(GenericIndexAlg):
         super().update(arm, reward)
         if self.alg_time < self.K:
             return
+        u = np.maximum(np.ones(self.K, self.alg_time / (self.alg_n_plays * self.K)))
         self.indices = self.mean_rewards + self.sig * np.sqrt(
-            2 * np.log(self.alg_time / (self.alg_n_plays * self.K)) / (self.alg_n_plays)
+            2 * np.log(u) / (self.alg_n_plays)
         )
 
 

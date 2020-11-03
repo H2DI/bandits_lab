@@ -73,17 +73,17 @@ class FTRLCanvas(AdvAlg):
         """
             y_hat = M + (y_At - M ) / p_At
         """
-        try:
-            assert p[arm] > 0
-        except ValueError:
-            print(
-                "p[arm] = 0 in FTRL",
-                p,
-                arm,
-                p[arm],
-                np.sum(p),
-                np.isclose(p, np.sum(p)),
-            )
+        # try:
+        #     assert p[arm] > 0
+        # except ValueError:
+        #     print(
+        #         "p[arm] = 0 in FTRL",
+        #         p,
+        #         arm,
+        #         p[arm],
+        #         np.sum(p),
+        #         np.isclose(p, np.sum(p)),
+        #     )
         r = self.M * np.ones(self.K)
         r[arm] += (reward - self.M) / p[arm]
         return r
@@ -112,7 +112,7 @@ class Exp3(FTRLCanvas):
     """
 
     def choose_p(self):
-        if self.lr_value > 5e4:
+        if np.isinf(self.lr_value):
             p = np.ones(self.K) / self.K
         else:
             logweights = self.lr_value * self.cum_reward_estimates
@@ -138,17 +138,21 @@ class AdaHedgeExp3(Exp3):
         self.mix_gaps = []
 
     def lr_update(self):
-        p, _, reward_est = (
+        p, reward_est = (
             self.played_ps[-1],
-            self.played_arms[-1],
             self.indiv_reward_estimates[-1],
         )
-        if any(np.isinf(np.exp(self.lr_value * reward_est))):
-            mix_gap = max(reward_est) - np.dot(p, reward_est)
+        def_mix_gap = max(reward_est) - np.dot(p, reward_est)
+        if np.isinf(self.lr_value):
+            mix_gap = def_mix_gap
         else:
-            mix_gap = -np.dot(p, reward_est) + 1 / self.lr_value * np.log(
-                np.dot(p, np.exp(self.lr_value * reward_est))
-            )
+            v_exp = np.exp(self.lr_value * reward_est)
+            if any(np.isinf(v_exp)):
+                mix_gap = def_mix_gap
+            else:
+                mix_gap = -np.dot(p, reward_est) + 1 / self.lr_value * np.log(
+                    np.dot(p, v_exp)
+                )
         self.cum_mix_gap += mix_gap
         self.mix_gaps.append(mix_gap)
         if np.isclose(self.cum_mix_gap, 0):
@@ -182,26 +186,24 @@ class AdaHedgeExp3ExtraExp(AdaHedgeExp3):
     def lr_update(self):
         if self.alg_time < self.K:
             return
-        p, _, reward_est = (
+        p, reward_est = (
             self.qs[-1],
-            self.played_arms[-1],
             self.indiv_reward_estimates[-1],
         )
-        if any(np.isinf(np.exp(self.lr_value * reward_est))):
-            mix_gap = max(reward_est) - np.dot(p, reward_est)
+        def_mix_gap = max(reward_est) - np.dot(p, reward_est)
+        if np.isinf(self.lr_value):
+            mix_gap = def_mix_gap
         else:
-            # print("lr_value * reward_est : ", self.lr_value * reward_est)
-            # print(
-            #     "exp(lr_value * rew_est) : ", np.exp(self.lr_value * reward_est),
-            # )
-            mix_gap = -np.dot(p, reward_est) + 1 / self.lr_value * np.log(
-                np.dot(p, np.exp(self.lr_value * reward_est))
-            )
+            v_exp = np.exp(self.lr_value * reward_est)
+            if any(np.isinf(v_exp)):
+                print("Infinity encountered")
+                mix_gap = def_mix_gap
+            else:
+                mix_gap = -np.dot(p, reward_est) + 1 / self.lr_value * np.log(
+                    np.dot(p, v_exp)
+                )
         self.cum_mix_gap += mix_gap
         self.mix_gaps.append(mix_gap)
-        # print("mix gap ", mix_gap)
-        # print("cum_mix_gap :", self.cum_mix_gap)
-        # print("time :", self.alg_time)
         if np.isclose(self.cum_mix_gap, 0, 1e-10):
             self.lr_value = np.inf
         else:
@@ -210,7 +212,7 @@ class AdaHedgeExp3ExtraExp(AdaHedgeExp3):
     def update(self, p, arm, reward):
         super().update(p, arm, reward)
         if self.alg_time == self.K - 1:
-            self.M = np.mean(self.individual_rewards)
+            self.M = np.max(self.individual_rewards)
             self.cum_reward_estimates = np.zeros(self.K)
             self.indiv_reward_estimates = []
 

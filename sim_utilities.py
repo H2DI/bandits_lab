@@ -129,21 +129,9 @@ def launch(data_dict, verb=False, n_jobs=1, checkpoints=True):
 
 
 def plot_and_save(
-    data_dict,
-    save_figure=False,
-    skip_algs=[],
-    log_scale=True,
-    show_vars=True,
-    clean=False,
-    **kwargs,
+    data_dict, save_figure=False, skip_algs=[], **kwargs,
 ):
     """ Tailored to the range adaptation experiments """
-    colors = plt.get_cmap("tab20").colors
-    T = data_dict["T"]
-    if "t_slice" in kwargs:
-        t_slice = kwargs["t_slice"]
-    else:
-        t_slice = range(T)
     nplots = len(data_dict["band_list"])
     fig, axes = plt.subplots(nrows=1, ncols=nplots, figsize=(16, 4), sharey="all")
     for i, _ in enumerate(data_dict["band_list"]):
@@ -154,34 +142,104 @@ def plot_and_save(
         for j, alg in enumerate(data_dict["alg_list"]):
             if j in skip_algs or not (data_dict["ended"][i][j]):
                 continue
-            mean_reg, var_reg = data_dict["results"][i][j]
-            if "rescale" in kwargs.keys():
-                if kwargs["rescale"]:
-                    mean_reg = np.array(mean_reg) / data_dict["scales"][i]
-                    var_reg = np.array(var_reg) / np.square(data_dict["scales"][i])
-            if log_scale:
-                ax.set_xscale("log")  # , nonposx='clip')
-            if clean:
-                alg_label = alg.label
-            else:
-                alg_label = str(j) + ": " + alg.label
-            ax.plot(
-                t_slice, mean_reg[t_slice], label=alg_label, color=colors[j],
-            )
-            if show_vars:
-                sig = np.sqrt(var_reg[t_slice] / data_dict["N_tests"][i])
-                ax.fill_between(
-                    t_slice,
-                    mean_reg[t_slice] + 2 * sig,
-                    mean_reg[t_slice] - 2 * sig,
-                    alpha=0.3,
-                    color=colors[j],
-                )
+            label = alg.label
+            if "clean" in kwargs:
+                if not (kwargs["clean"]):
+                    label = str(j) + ": " + label
+            plot_ij(data_dict, ax, i, j, label, **kwargs)
         if i == 0:
             ax.legend()
 
     if save_figure:
         plt.tight_layout()
-        # save_data_dict(data_dict)
         path = uniquify(data_dict["short_name"] + ".pdf")
         plt.savefig(path, format="pdf")
+
+
+def plot_ij(data_dict, ax, i, j, label, **kwargs):
+    colors = plt.get_cmap("tab10").colors
+    T = data_dict["T"]
+    if "t_slice" in kwargs:
+        t_slice = kwargs["t_slice"]
+    else:
+        t_slice = range(T)
+    mean_reg, var_reg = data_dict["results"][i][j]
+    if "rescale" in kwargs:
+        if kwargs["rescale"]:
+            mean_reg = np.array(mean_reg) / data_dict["scales"][i]
+            var_reg = np.array(var_reg) / np.square(data_dict["scales"][i])
+    if "log_scale" in kwargs:
+        if kwargs["log_scale"]:
+            ax.set_xscale("log")
+    ax.plot(
+        t_slice, mean_reg[t_slice], label=label, color=colors[j],
+    )
+    if "show_vars" in kwargs:
+        if kwargs["show_vars"]:
+            sig = np.sqrt(var_reg[t_slice] / data_dict["N_tests"][i])
+            ax.fill_between(
+                t_slice,
+                mean_reg[t_slice] + 2 * sig,
+                mean_reg[t_slice] - 2 * sig,
+                alpha=0.3,
+                color=colors[j],
+            )
+
+
+# def plot_and_save(
+#     data_dict,
+#     save_figure=False,
+#     skip_algs=[],
+#     log_scale=True,
+#     show_vars=True,
+#     clean=False,
+#     **kwargs,
+# ):
+#     """ Tailored to the range adaptation experiments """
+#     colors = plt.get_cmap("tab20").colors
+#     T = data_dict["T"]
+#     if "t_slice" in kwargs:
+#         t_slice = kwargs["t_slice"]
+#     else:
+#         t_slice = range(T)
+#     nplots = len(data_dict["band_list"])
+#     fig, axes = plt.subplots(nrows=1, ncols=nplots, figsize=(16, 4), sharey="all")
+#     for i, _ in enumerate(data_dict["band_list"]):
+#         if nplots >= 2:  # axes[i] does not work when there is only 1 subplot
+#             ax = axes[i]
+#         else:
+#             ax = axes
+#         for j, alg in enumerate(data_dict["alg_list"]):
+#             if j in skip_algs or not (data_dict["ended"][i][j]):
+#                 continue
+#             mean_reg, var_reg = data_dict["results"][i][j]
+#             if "rescale" in kwargs.keys():
+#                 if kwargs["rescale"]:
+#                     mean_reg = np.array(mean_reg) / data_dict["scales"][i]
+#                     var_reg = np.array(var_reg) / np.square(data_dict["scales"][i])
+#             if log_scale:
+#                 ax.set_xscale("log")  # , nonposx='clip')
+#             if clean:
+#                 alg_label = alg.label
+#             else:
+#                 alg_label = str(j) + ": " + alg.label
+#             ax.plot(
+#                 t_slice, mean_reg[t_slice], label=alg_label, color=colors[j],
+#             )
+#             if show_vars:
+#                 sig = np.sqrt(var_reg[t_slice] / data_dict["N_tests"][i])
+#                 ax.fill_between(
+#                     t_slice,
+#                     mean_reg[t_slice] + 2 * sig,
+#                     mean_reg[t_slice] - 2 * sig,
+#                     alpha=0.3,
+#                     color=colors[j],
+#                 )
+#         if i == 0:
+#             ax.legend()
+#
+#     if save_figure:
+#         plt.tight_layout()
+#         # save_data_dict(data_dict)
+#         path = uniquify(data_dict["short_name"] + ".pdf")
+#         plt.savefig(path, format="pdf")
