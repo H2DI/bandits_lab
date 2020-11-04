@@ -23,8 +23,8 @@ ups[0] = 1.2
 M = 0
 
 means = (ups + lows) / 2
-variances = 0.01 * np.ones(K)  # low variance
-# variances = 0.25 * np.ones(K)  # high variance
+# variances = 0.01 * np.ones(K)  # low variance
+variances = 0.25 * np.ones(K)  # high variance
 
 band_list = [
     bands.SymTruncatedGaussian(K, s * lows, s * ups, s * means, s * s * variances)
@@ -59,7 +59,7 @@ alg_list = [
 
 data_dict = {
     "name": "Long Name",
-    "short_name": "multi_scale_2_trunc_gauss_lo_var",
+    "short_name": "multi_scale_2_trunc_gauss_hi_var",
     "T": T,
     "N_tests": N_tests,
     "band_list": band_list,
@@ -77,16 +77,3 @@ print("scales : ", scales)
 sim.launch(data_dict, n_jobs=4, checkpoints=True)
 
 print("Done")
-
-# skips = []
-# sim.plot_and_save(
-#     data_dict,
-#     save_figure=False,
-#     skip_algs=skips,
-#     log_scale=False,
-#     show_vars=False,
-#     clean=True,
-#     rescale=True,
-# )  # , t_slice=t_slice)
-#
-# plt.show()
