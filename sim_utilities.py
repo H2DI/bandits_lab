@@ -105,8 +105,8 @@ def launch(data_dict, verb=False, n_jobs=1, checkpoints=True):
                 time_comp[-1].append(time_taken)
                 ended[-1].append(True)
                 print(
-                    f"{alg.label} took {time_taken} total, i.e.,"
-                    + f" {time_taken / N_test} per run",
+                    "{} took {:0.2f} total, i.e.,".format(alg.label, time_taken)
+                    + " {:0.2f} per run".format(time_taken / N_test),
                 )
                 mean_reg = np.mean(n_regret_array, axis=0)
                 var_reg = np.var(n_regret_array, axis=0)

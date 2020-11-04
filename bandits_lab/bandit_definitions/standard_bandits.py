@@ -4,27 +4,20 @@ import numpy as np
 class DBand:
     """ K-arm stochastic bandit """
 
-    def __init__(self, K, mus, noise="gaussian", noise_sig=0.25):
+    def __init__(self, K, mus, noise="gaussian"):
         self.K = K
         self.mus = mus
         self.m = np.max(mus)  # max mean value
-        self.noise = noise  # either "gaussian" or "bernoulli"
-        self.noise_sig = noise_sig
+        self.noise = noise  # String describing the noise distributions
         self.time = 0
-
-        if self.noise == "bernoulli":
-            assert (self.mus <= 1).all() and (self.mus >= 0).all()
 
         self.played_arms = []
         self.observed_rewards = []
         self.point_regret = []
-        self.cum_regret = []
+        self.cum_regret = [0]
 
     def _compute_reward(self, a):
-        if self.noise == "gaussian":
-            return self.mus[a] + np.random.normal(0, self.noise_sig)
-        elif self.noise == "bernoulli":
-            return np.random.rand() <= self.mus[a]
+        pass
 
     def play_arm(self, a):
         reward = self._compute_reward(a)
@@ -33,11 +26,9 @@ class DBand:
         self.point_regret.append(self.m - self.mus[a])
 
         self.time += 1
-        if self.cum_regret:
-            last_r = self.cum_regret[-1]
-            self.cum_regret.append(last_r + self.m - self.mus[a])
-        else:
-            self.cum_regret.append(self.m - self.mus[a])
+        last_r = self.cum_regret[-1]
+        self.cum_regret.append(last_r + self.m - self.mus[a])
+
         return reward
 
     def reset(self):
@@ -47,6 +38,25 @@ class DBand:
         self.observed_rewards = []
         self.point_regret = []
         self.cum_regret = []
+
+
+class GaussBand(DBand):
+    def __init__(self, K, mus, variances):
+        super().__init__(K, mus, noise="gaussian")
+        self.variances = variances
+        self.sigma = np.sqrt(self.variances)
+
+    def _compute_reward(self, a):
+        return np.random.normal(self.mus[a], self.sigma[a])
+
+
+class BernoulliBand(DBand):
+    def __init__(self, K, mus):
+        assert all((self.mus <= 1) and (self.mus >= 0))
+        super().__init__(K, mus, noise="bernoulli")
+
+    def _compute_reward(self, a):
+        return 1.0 * (np.random.rand() < self.mus[a])
 
 
 class UnifDBand(DBand):
@@ -62,17 +72,22 @@ class UnifDBand(DBand):
         return self.lows[a] + np.random.rand() * (self.ups[a] - self.lows[a])
 
 
-class UnifDBandBand2(DBand):
-    """obsolete / kept in case I forgot something"""
+class SymTruncatedGaussian(DBand):
+    """
+    Symmetric Truncated gaussians: specify lower, upper, means, variances
+    symmetric means that the means have to be ( l + u )/ 2.
+    """
 
-    def __init__(self, K, mus, M, r_range):
-        super().__init__(K, mus, noise="unif")
-        self.range = r_range
-        assert all(self.mus < M - self.range / 2)
+    def __init__(self, K, lows, ups, means, variances):
+        super().__init__(K, means, noise="TruncGauss")
+        assert np.all(means == (lows + ups) / 2)
+        self.lows = lows
+        self.ups = ups
+        self.sigma = np.sqrt(variances)
 
-    def _compute_reward(self, a):  # returns a couple (mean, actual_reward)
-        noise = self.range * (np.random.rand() - 1 / 2)
-        return self.mus[a] + noise
+    def _compute_reward(self, a):
+        l, u, mu, sigma = self.lows[a], self.ups[a], self.mus[a], self.sigma[a]
+        return max(l, min(u, np.random.normal(mu, sigma)))
 
 
 class AdvObliviousBand:

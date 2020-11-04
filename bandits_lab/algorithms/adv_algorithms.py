@@ -1,5 +1,6 @@
 import numpy as np
 import cvxpy as cp
+import math
 
 from . import optim_utils
 
@@ -63,8 +64,10 @@ class FTRLCanvas(AdvAlg):
         super().__init__(K, **params)
         self.M = M  # parameter for the algorithm
         self.lr_value = np.inf
+        self.finite_lr = False
         self.indiv_reward_estimates = []
         self.cum_reward_estimates = np.zeros(self.K)
+        self.unif = np.ones(self.K) / self.K
 
     def choose_p(self):
         pass
@@ -84,11 +87,13 @@ class FTRLCanvas(AdvAlg):
         #         np.sum(p),
         #         np.isclose(p, np.sum(p)),
         #     )
+
         r = self.M * np.ones(self.K)
+        # r = self.M * self.K * self.unif
         r[arm] += (reward - self.M) / p[arm]
         return r
 
-    def lr_udpate():
+    def lr_update(self):
         pass
 
     def update(self, p, arm, reward):
@@ -101,6 +106,7 @@ class FTRLCanvas(AdvAlg):
     def reset(self):
         super().reset()
         self.lr_value = np.inf
+        self.finite_lr = False
         self.cum_reward_estimates = np.zeros(self.K)
         self.indiv_reward_estimates = []
 
@@ -111,15 +117,18 @@ class Exp3(FTRLCanvas):
         $\eta_t = log(K) / (K * \sqrt(T))$
     """
 
+    def _vector_exp(self, v):
+        return np.vectorize(math.exp)(v)
+
     def choose_p(self):
         if np.isinf(self.lr_value):
-            p = np.ones(self.K) / self.K
+            p = self.unif
         else:
             logweights = self.lr_value * self.cum_reward_estimates
-            temp = np.exp(logweights - np.max(logweights))
+            max_logweight = np.max(logweights)
+            temp = np.array([math.exp(lw) for lw in logweights - max_logweight])
+            # temp = self._vector_exp(logweights - max_logweight)
             p = temp / np.sum(temp)
-        # print("Learning rate : ", self.lr_value)
-        # print("Chosen p : ", p)
         return p
 
     def lr_update(self):
@@ -146,7 +155,7 @@ class AdaHedgeExp3(Exp3):
         if np.isinf(self.lr_value):
             mix_gap = def_mix_gap
         else:
-            v_exp = np.exp(self.lr_value * reward_est)
+            v_exp = self._vector_exp(self.lr_value * reward_est)
             if any(np.isinf(v_exp)):
                 mix_gap = def_mix_gap
             else:
@@ -155,9 +164,11 @@ class AdaHedgeExp3(Exp3):
                 )
         self.cum_mix_gap += mix_gap
         self.mix_gaps.append(mix_gap)
-        if np.isclose(self.cum_mix_gap, 0):
+
+        if not self.finite_lr and np.isclose(self.cum_mix_gap, 0):
             self.lr_value = np.inf
         else:
+            self.finite_lr = True
             self.lr_value = self.D / self.cum_mix_gap
 
     def reset(self):
@@ -169,44 +180,54 @@ class AdaHedgeExp3(Exp3):
 class AdaHedgeExp3ExtraExp(AdaHedgeExp3):
     def __init__(self, K, **params):
         super().__init__(K, M=0, **params)
-        self.beta = np.sqrt(10 * K * np.log(K))
-        self.qs = []
+        self.beta = math.sqrt(10 * K * math.log(K))
+        self.last_q = np.zeros(self.K)
 
     def choose_p(self):
         q = super().choose_p()
-        self.qs.append(q)
+        self.last_q = q
         if self.alg_time < self.K:
             p = np.zeros(self.K)
             p[self.alg_time] = 1
         else:
-            gamma_t = min(0.5, self.beta / np.sqrt(self.alg_time))
-            p = (1 - gamma_t) * q + gamma_t * np.ones(self.K) / self.K
+            gamma_t = min(0.5, self.beta / math.sqrt(self.alg_time))
+            p = (1 - gamma_t) * q + gamma_t * self.unif
         return p
 
     def lr_update(self):
         if self.alg_time < self.K:
             return
         p, reward_est = (
-            self.qs[-1],
+            self.last_q,
             self.indiv_reward_estimates[-1],
         )
-        def_mix_gap = max(reward_est) - np.dot(p, reward_est)
-        if np.isinf(self.lr_value):
-            mix_gap = def_mix_gap
-        else:
-            v_exp = np.exp(self.lr_value * reward_est)
-            if any(np.isinf(v_exp)):
-                print("Infinity encountered")
-                mix_gap = def_mix_gap
+
+        try:
+            # v_exp = self._vector_exp(self.lr_value * reward_est)
+            v_exp = np.array([math.exp(x) for x in self.lr_value * reward_est])
+            if np.any(np.isinf(v_exp)):
+                mix_gap = np.max(reward_est) - np.dot(p, reward_est)
             else:
                 mix_gap = -np.dot(p, reward_est) + 1 / self.lr_value * np.log(
                     np.dot(p, v_exp)
                 )
+        except OverflowError:
+            mix_gap = np.max(reward_est) - np.dot(p, reward_est)
+
+        # v_exp = self._vector_exp(self.lr_value * reward_est)
+        # v_exp = np.array([math.exp(x) for x in self.lr_value * reward_est])
+        # if np.any(np.isinf(v_exp)):
+        #     mix_gap = np.max(reward_est) - np.dot(p, reward_est)
+        # else:
+        #     mix_gap = -np.dot(p, reward_est) + 1 / self.lr_value * np.log(
+        #         np.dot(p, v_exp)
+        #     )
         self.cum_mix_gap += mix_gap
         self.mix_gaps.append(mix_gap)
-        if np.isclose(self.cum_mix_gap, 0, 1e-10):
+        if not self.finite_lr and np.isclose(self.cum_mix_gap, 0):
             self.lr_value = np.inf
         else:
+            self.finite_lr = True
             self.lr_value = self.D / self.cum_mix_gap
 
     def update(self, p, arm, reward):
@@ -218,7 +239,7 @@ class AdaHedgeExp3ExtraExp(AdaHedgeExp3):
 
     def reset(self):
         super().reset()
-        self.qs = []
+        self.last_q = np.zeros(self.K)
 
 
 class AdaFTRLTsallis(FTRLCanvas):
@@ -239,7 +260,7 @@ class AdaFTRLTsallis(FTRLCanvas):
 
     def choose_p(self):
         if np.isinf(self.lr_value):
-            return np.ones(self.K) / self.K
+            return self.unif
         else:
             if self.sym:
                 regularizer = optim_utils.Tsallis_1_2_sym(self.K)

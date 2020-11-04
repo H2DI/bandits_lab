@@ -5,6 +5,6 @@ __pycache__/
 cachedir
 .DS_Store
 */.DS_Store
+*.pkl
 script_*
-data_saves/*
 notebooks/loc_*

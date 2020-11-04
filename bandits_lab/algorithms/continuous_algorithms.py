@@ -327,6 +327,7 @@ class AbstractCAB2(ContAlg):
     # distributions_function is a function (0,..., K-1) -> [0, 1]
     # delta is the moss confidence parameter
     def __init__(self, distributions_function, K, delta):
+        super().__init__()
         self.K = K
         self.distributions_function = distributions_function
         self.delta = delta
