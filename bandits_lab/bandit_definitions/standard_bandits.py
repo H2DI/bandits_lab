@@ -52,7 +52,7 @@ class GaussBand(DBand):
 
 class BernoulliBand(DBand):
     def __init__(self, K, mus):
-        assert all((self.mus <= 1) and (self.mus >= 0))
+        assert (mus <= 1).all() and (mus >= 0).all()
         super().__init__(K, mus, noise="bernoulli")
 
     def _compute_reward(self, a):
@@ -72,6 +72,16 @@ class UnifDBand(DBand):
         return self.lows[a] + np.random.rand() * (self.ups[a] - self.lows[a])
 
 
+class TruncatedGaussian(DBand):
+    def __init__(self, K, means, variances):
+        super().__init__(K, means, noise="SymTruncGauss")
+        self.sigma = np.sqrt(variances)
+
+    def _compute_reward(self, a):
+        mu, sigma = self.mus[a], self.sigma[a]
+        return max(0, min(1, np.random.normal(mu, sigma)))
+
+
 class SymTruncatedGaussian(DBand):
     """
     Symmetric Truncated gaussians: specify lower, upper, means, variances
@@ -79,7 +89,7 @@ class SymTruncatedGaussian(DBand):
     """
 
     def __init__(self, K, lows, ups, means, variances):
-        super().__init__(K, means, noise="TruncGauss")
+        super().__init__(K, means, noise="SymTruncGauss")
         assert np.all(means == (lows + ups) / 2)
         self.lows = lows
         self.ups = ups
