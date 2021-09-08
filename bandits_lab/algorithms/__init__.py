@@ -1,4 +1,4 @@
-# from .adv_algorithms import *
+from .adv_algorithms import *
 
 # from .anon_algorithms import *
 # from .div_p_algorithms import *

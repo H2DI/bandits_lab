@@ -1,5 +1,6 @@
 import numpy as np
-import cvxpy as cp
+
+# import cvxpy as cp
 
 """
     Optimization utilities for Follow the Regularized Leader implementation,

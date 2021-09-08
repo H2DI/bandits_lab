@@ -157,7 +157,7 @@ class KLUCB(GenericIndexAlg):
         self.obs_dict = [{1: 0} for _ in range(self.K)]
 
     def expl(self, t, n):
-        return np.log(np.maximum(1, t / (self.K * n)))
+        return np.log(t)
 
     def update(self, arm, reward):
         super().update(arm, reward)
@@ -229,9 +229,17 @@ class KLUCB(GenericIndexAlg):
         return l
 
 
+class KLUCBPlusPlus(KLUCB):
+    def expl(self, t, n):
+        return np.log(np.maximum(1, t / (self.K * n)))
+
+
 class KLUCBswitch(KLUCB):
     def switch(self, t):
         return np.power(t / self.K, 1 / 5)
+
+    def expl(self, t, n):
+        return np.log(np.maximum(1, t / (self.K * n)))
 
     def update(self, arm, reward):
         super(KLUCB, self).update(arm, reward)
@@ -248,6 +256,37 @@ class KLUCBswitch(KLUCB):
             if n <= self.switch(t):
                 self.indices[i] = super().compute_KL_index(i, expl)
             else:
+                self.indices[i] = self.mean_rewards[i] + (1 / 2) * np.sqrt(2 * expl)
+
+
+class KLUCBswitchProfile(KLUCBswitch):
+    def __init__(self, K, label=""):
+        super().__init__(K, label=label)
+        self.profile = [[] for _ in range(K)]
+
+    def switch(self, t):
+        return np.power(t / self.K, 1 / 5)
+
+    def expl(self, t, n):
+        return np.log(np.maximum(1, t / (self.K * n)))
+
+    def update(self, arm, reward):
+        super(KLUCB, self).update(arm, reward)
+        t = self.alg_time
+        if reward in self.obs_dict[arm]:
+            self.obs_dict[arm][reward] += 1
+        else:
+            self.obs_dict[arm][reward] = 1
+        if t <= self.K:
+            return
+        for i in range(self.K):
+            n = self.alg_n_plays[i]
+            expl = self.expl(t, n) / n
+            if n <= self.switch(t):
+                self.profile[i].append(0)
+                self.indices[i] = super().compute_KL_index(i, expl)
+            else:
+                self.profile[i].append(1)
                 self.indices[i] = self.mean_rewards[i] + (1 / 2) * np.sqrt(2 * expl)
 
 
@@ -302,6 +341,9 @@ class EpsGreedy(DAlg):
 class RandomPlay(DAlg):
     def choose_arm(self):
         return np.random.randint(self.K)
+
+
+# class IMED(DAlg):
 
 
 def kl(p, q):

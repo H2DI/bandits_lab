@@ -8,7 +8,6 @@ import matplotlib.pyplot as plt
 import bandits_lab.algorithms as algs
 
 from copy import deepcopy
-
 from joblib import Parallel, delayed
 
 # running the simuations from a data_dict:
@@ -82,7 +81,7 @@ def load_data_dict(path):
     return data_dict
 
 
-def launch(data_dict, verb=False, n_jobs=1, checkpoints=True):
+def launch(data_dict, verb=False, n_jobs=1, checkpoints=True, varying_Ks=False):
     if "seed" in data_dict.keys():
         np.random.seed(data_dict["seed"])
     T, band_list = data_dict["T"], data_dict["band_list"]

@@ -1,5 +1,6 @@
 import numpy as np
-import cvxpy as cp
+
+# import cvxpy as cp
 import math
 
 from . import optim_utils
@@ -114,7 +115,7 @@ class FTRLCanvas(AdvAlg):
 class Exp3(FTRLCanvas):
     r"""
         The vanilla Exp3 algorithm with the usual learning rate scheme
-        $\eta_t = log(K) / (K * \sqrt(T))$
+        $\eta_t = log(K) / (K * \sqrt(t))$
     """
 
     def _vector_exp(self, v):
@@ -126,8 +127,8 @@ class Exp3(FTRLCanvas):
         else:
             logweights = self.lr_value * self.cum_reward_estimates
             max_logweight = np.max(logweights)
-            temp = np.array([math.exp(lw) for lw in logweights - max_logweight])
-            # temp = self._vector_exp(logweights - max_logweight)
+            # temp = np.array([math.exp(lw) for lw in logweights - max_logweight])
+            temp = self._vector_exp(logweights - max_logweight)
             p = temp / np.sum(temp)
         return p
 
@@ -360,15 +361,15 @@ class FastAdaFTRLTsallis(AdaFTRLTsallis):
             if verb and self.alg_time > 0:
                 print("w :", w)
                 print("c :", c)
-                print("np.sum(w)", np.sum(w))
+                print("np.sum(w) :", np.sum(w))
             c1 = c - speed * 2 * (np.sum(w) - 1) / np.sum(np.power(w, 3 / 2))
             if np.isclose(c, c1) and (np.isclose(np.sum(w), 1)):
                 w = w / np.sum(w)
                 if verb and self.alg_time > 0:
-                    print("alg_time", self.alg_time)
+                    print("alg_time :", self.alg_time)
                     print("counter :", count)
-                    print("w", w)
-                    print("c", c)
+                    print("w :", w)
+                    print("c :", c)
                 return w
             else:
                 c = c1
@@ -436,7 +437,10 @@ class FastAdaFTRLTsallis(AdaFTRLTsallis):
                 print("reward estimates :", self.cum_reward_estimates)
                 print("product", -self.lr_value * self.cum_reward_estimates)
             p = self._comp_p(
-                -self.lr_value * self.cum_reward_estimates, self.speed, self.n_stops
+                -self.lr_value * self.cum_reward_estimates,
+                self.speed,
+                self.n_stops,
+                verb=self.verb,
             )
         return p
 
@@ -454,7 +458,7 @@ class FastFTRLTsallis(FastAdaFTRLTsallis):
         super().__init__(K, M=M, sym=sym, proxy=False, **params)
 
     def lr_update(self):
-        self.lr_value = np.sqrt(1 / self.alg_time)
+        self.lr_value = 2 * np.sqrt(1 / self.alg_time)
 
 
 class FTRLTsallis(AdaFTRLTsallis):
@@ -466,7 +470,7 @@ class FTRLTsallis(AdaFTRLTsallis):
         super().__init__(K, M=M, sym=sym, proxy=False, **params)
 
     def lr_update(self):
-        self.lr_value = np.sqrt(1 / self.alg_time)
+        self.lr_value = 2 * np.sqrt(1 / self.alg_time)
 
 
 ################################################################################

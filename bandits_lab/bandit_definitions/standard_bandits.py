@@ -73,13 +73,39 @@ class UnifDBand(DBand):
 
 
 class TruncatedGaussian(DBand):
-    def __init__(self, K, means, variances):
-        super().__init__(K, means, noise="SymTruncGauss")
+    def __init__(self, K, params, variances):
         self.sigma = np.sqrt(variances)
+        self.params = params
+        # N = 1e6
+        # samples = np.zeros((K, N))
+        # for a in range(K):
+        #     for i in range(N):
+        #         samples[a, i] = max(
+        #             0, min(1, np.random.normal(self.params[a], self.sigma[a]))
+        #         )
+        # self.mus = np.mean(samples, axis=1)
+        # super().__init__(K, self.mus, noise="SymTruncGauss")
+        super().__init__(K, self.params, noise="SymTruncGauss")
 
     def _compute_reward(self, a):
-        mu, sigma = self.mus[a], self.sigma[a]
+        mu, sigma = self.params[a], self.sigma[a]
         return max(0, min(1, np.random.normal(mu, sigma)))
+
+
+class TruncatedExp(DBand):
+    def __init__(self, K, params):
+        self.params = params
+        # N = 100000
+        # samples = np.zeros((K, N))
+        # for a in range(K):
+        #     for i in range(N):
+        #         samples[a, i] = max(0, min(1, np.random.exponential(self.params[a])))
+        # self.means = np.mean(samples, axis=1)
+        # super().__init__(K, self.means, noise="TruncExp")
+        super().__init__(K, self.params, noise="TruncExp")
+
+    def _compute_reward(self, a):
+        return max(0, min(1, np.random.exponential(self.params[a])))
 
 
 class SymTruncatedGaussian(DBand):
