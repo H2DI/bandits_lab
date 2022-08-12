@@ -81,7 +81,7 @@ def load_data_dict(path):
     return data_dict
 
 
-def launch(data_dict, verb=False, n_jobs=1, checkpoints=True, varying_Ks=False):
+def launch(data_dict, verb=False, n_jobs=1, checkpoints=True):
     if "seed" in data_dict.keys():
         np.random.seed(data_dict["seed"])
     T, band_list = data_dict["T"], data_dict["band_list"]
@@ -127,7 +127,7 @@ def launch(data_dict, verb=False, n_jobs=1, checkpoints=True, varying_Ks=False):
                 continue
 
 
-def plot_and_save(
+def plot_and_save_range(
     data_dict, save_figure=False, skip_algs=[], **kwargs,
 ):
     """ Tailored to the range adaptation experiments """

@@ -77,20 +77,7 @@ class FTRLCanvas(AdvAlg):
         """
             y_hat = M + (y_At - M ) / p_At
         """
-        # try:
-        #     assert p[arm] > 0
-        # except ValueError:
-        #     print(
-        #         "p[arm] = 0 in FTRL",
-        #         p,
-        #         arm,
-        #         p[arm],
-        #         np.sum(p),
-        #         np.isclose(p, np.sum(p)),
-        #     )
-
         r = self.M * np.ones(self.K)
-        # r = self.M * self.K * self.unif
         r[arm] += (reward - self.M) / p[arm]
         return r
 
@@ -118,17 +105,13 @@ class Exp3(FTRLCanvas):
         $\eta_t = log(K) / (K * \sqrt(t))$
     """
 
-    def _vector_exp(self, v):
-        return np.vectorize(math.exp)(v)
-
     def choose_p(self):
         if np.isinf(self.lr_value):
             p = self.unif
         else:
             logweights = self.lr_value * self.cum_reward_estimates
             max_logweight = np.max(logweights)
-            # temp = np.array([math.exp(lw) for lw in logweights - max_logweight])
-            temp = self._vector_exp(logweights - max_logweight)
+            temp = np.exp(logweights - max_logweight)
             p = temp / np.sum(temp)
         return p
 
@@ -156,7 +139,8 @@ class AdaHedgeExp3(Exp3):
         if np.isinf(self.lr_value):
             mix_gap = def_mix_gap
         else:
-            v_exp = self._vector_exp(self.lr_value * reward_est)
+            # v_exp = self._vector_exp(self.lr_value * reward_est)
+            v_exp = np.exp(self.lr_value * reward_est)
             if any(np.isinf(v_exp)):
                 mix_gap = def_mix_gap
             else:
@@ -205,7 +189,8 @@ class AdaHedgeExp3ExtraExp(AdaHedgeExp3):
 
         try:
             # v_exp = self._vector_exp(self.lr_value * reward_est)
-            v_exp = np.array([math.exp(x) for x in self.lr_value * reward_est])
+            # v_exp = np.array([math.exp(x) for x in self.lr_value * reward_est])
+            v_exp = np.exp(self.lr_value * reward_est)
             if np.any(np.isinf(v_exp)):
                 mix_gap = np.max(reward_est) - np.dot(p, reward_est)
             else:
@@ -358,18 +343,9 @@ class FastAdaFTRLTsallis(AdaFTRLTsallis):
         count = 0
         while count < n_stops:
             w = 1.0 / np.square(losses - c)
-            if verb and self.alg_time > 0:
-                print("w :", w)
-                print("c :", c)
-                print("np.sum(w) :", np.sum(w))
             c1 = c - speed * 2 * (np.sum(w) - 1) / np.sum(np.power(w, 3 / 2))
             if np.isclose(c, c1) and (np.isclose(np.sum(w), 1)):
                 w = w / np.sum(w)
-                if verb and self.alg_time > 0:
-                    print("alg_time :", self.alg_time)
-                    print("counter :", count)
-                    print("w :", w)
-                    print("c :", c)
                 return w
             else:
                 c = c1
@@ -432,10 +408,6 @@ class FastAdaFTRLTsallis(AdaFTRLTsallis):
         if np.isinf(self.lr_value):
             p = np.ones(self.K) / self.K
         else:
-            if self.verb and self.alg_time > 0:
-                print("learning rate :", self.lr_value)
-                print("reward estimates :", self.cum_reward_estimates)
-                print("product", -self.lr_value * self.cum_reward_estimates)
             p = self._comp_p(
                 -self.lr_value * self.cum_reward_estimates,
                 self.speed,
@@ -443,10 +415,6 @@ class FastAdaFTRLTsallis(AdaFTRLTsallis):
                 verb=self.verb,
             )
         return p
-
-    def reset(self):
-        super().reset()
-        self.c = 0
 
 
 class FastFTRLTsallis(FastAdaFTRLTsallis):
@@ -458,7 +426,7 @@ class FastFTRLTsallis(FastAdaFTRLTsallis):
         super().__init__(K, M=M, sym=sym, proxy=False, **params)
 
     def lr_update(self):
-        self.lr_value = 2 * np.sqrt(1 / self.alg_time)
+        self.lr_value = 4 * np.sqrt(1 / self.alg_time)
 
 
 class FTRLTsallis(AdaFTRLTsallis):

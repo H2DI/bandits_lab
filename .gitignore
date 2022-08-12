@@ -7,4 +7,5 @@ cachedir
 */.DS_Store
 *.pkl
 script_*
+loc_*
 notebooks/loc_*
