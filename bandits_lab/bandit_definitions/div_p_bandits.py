@@ -80,7 +80,7 @@ class PolytopeConstraints(DivConstraints):
 
     def check(self, x, delta=0.0001):
         r = (np.abs(np.sum(x) - 1) <= delta) and all(x > -delta)
-        for (l, u, s) in self.constraints:
+        for l, u, s in self.constraints:
             r = r and (l - delta <= np.dot(x, s) <= u + delta)
         return r
 
@@ -100,7 +100,7 @@ class PolytopeConstraints(DivConstraints):
             return x
         else:
             y = np.array([max(xi, 0) for xi in x])
-            for (l, u, s) in self.constraints:
+            for l, u, s in self.constraints:
                 if np.dot(y, s) > u:
                     y = y - (np.dot(y, s) - u) * s / np.linalg.norm(s)
                 elif np.dot(y, s) < l:
@@ -125,7 +125,7 @@ class PolytopeConstraints(DivConstraints):
 
 class SphereConstraints(DivConstraints):
     """
-     Works only when the sphere is completely included in the simplex
+    Works only when the sphere is completely included in the simplex
     """
 
     def __init__(self, K, r):
@@ -184,6 +184,9 @@ class DivPBand(DBand):
         self.point_regret = []
         self.cum_regret = []  # overwrites the attribute in the parent class
 
+    def _compute_reward(self, a):
+        return np.random.normal(self.mus[a], 1 / 2)
+
     def play_p(self, p):
         assert self.setP.check(p)
         arm = draw_from_p(p, self.K)
@@ -208,7 +211,7 @@ class DivPBand(DBand):
 
 
 class AnonBand:
-    """ in progress """
+    """in progress"""
 
     def __init__(self, K, M, cdistrib, mus, noise="gaussian"):
         self.K = K
@@ -260,7 +263,7 @@ class AnonBand:
 
 
 class AnonConstraints(DivConstraints):
-    """ in progress """
+    """in progress"""
 
     def __init__(self, K, M, cdistrib):
         self.K = K

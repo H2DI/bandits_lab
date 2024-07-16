@@ -56,7 +56,7 @@ def ucb_kl(mu, n, t, precision=0.0001):
 
 
 class DivIndexPolicies(DivPAlg):
-    """ Generic index policy for diversity-preserving bandits"""
+    """Generic index policy for diversity-preserving bandits"""
 
     def __init__(self, K, setP, label=""):
         super().__init__(K, setP, label=label)
@@ -82,16 +82,19 @@ class DivIndexPolicies(DivPAlg):
 
 
 class DivPUCB(DivIndexPolicies):
-    r""" Index $U_a(t) = \hat \mu_a(t) + sqrt( 2 \ln t  / N_a(t))$ """
+    r"""Index $U_a(t) = \hat \mu_a(t) + sqrt( 2 \ln t  / N_a(t))$"""
 
-    def __init__(self, K, setP, sig=1, label="", **params):
+    def __init__(self, K, setP, sig=1 / 2, label="", **params):
         super().__init__(K, setP, label=label)
         self.sig = sig
 
     def update(self, arm, reward):
         super().update(arm, reward)
-        self.indices = self.mean_rewards + self.sig * np.sqrt(
-            2 * np.log(self.alg_time) / np.maximum(self.alg_n_plays, 1)
+        self.indices = np.minimum(
+            1,
+            self.mean_rewards
+            + self.sig
+            * np.sqrt(8 * np.log(self.alg_time) / np.maximum(self.alg_n_plays, 1)),
         )
 
 

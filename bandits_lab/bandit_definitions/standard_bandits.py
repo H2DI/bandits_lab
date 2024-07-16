@@ -2,7 +2,7 @@ import numpy as np
 
 
 class DBand:
-    """ K-arm stochastic bandit """
+    """K-arm stochastic bandit"""
 
     def __init__(self, K, mus, noise="gaussian"):
         self.K = K
@@ -60,7 +60,7 @@ class BernoulliBand(DBand):
 
 
 class UnifDBand(DBand):
-    """ uniform bandits defined via the supports of each arm """
+    """uniform bandits defined via the supports of each arm"""
 
     def __init__(self, K, lows, ups):
         mus = [(low + up) / 2 for low, up in zip(lows, ups)]
@@ -128,10 +128,10 @@ class SymTruncatedGaussian(DBand):
 
 class AdvObliviousBand:
     """
-        Adversarial Oblivious Bandit. Never tested.
+    Adversarial Oblivious Bandit. Never tested.
 
-        The reward_gen attribute is a function that takes time as an arguments and
-        generates a reward vector (np.Array)
+    The reward_gen attribute is a function that takes time as an arguments and
+    generates a reward vector (np.Array)
     """
 
     def __init__(self, K, reward_gen):
