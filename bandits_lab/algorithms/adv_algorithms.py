@@ -1,6 +1,6 @@
 import numpy as np
 
-# import cvxpy as cp
+import cvxpy as cp
 import math
 
 from . import optim_utils
@@ -75,7 +75,7 @@ class FTRLCanvas(AdvAlg):
 
     def estimate_method(self, p, arm, reward):
         """
-            y_hat = M + (y_At - M ) / p_At
+        y_hat = M + (y_At - M ) / p_At
         """
         r = self.M * np.ones(self.K)
         r[arm] += (reward - self.M) / p[arm]
@@ -101,19 +101,20 @@ class FTRLCanvas(AdvAlg):
 
 class Exp3(FTRLCanvas):
     r"""
-        The vanilla Exp3 algorithm with the usual learning rate scheme
-        $\eta_t = log(K) / (K * \sqrt(t))$
+    The vanilla Exp3 algorithm with the usual learning rate scheme
+    $\eta_t = log(K) / (K * \sqrt(t))$
     """
 
     def choose_p(self):
-        if np.isinf(self.lr_value):
-            p = self.unif
-        else:
-            logweights = self.lr_value * self.cum_reward_estimates
-            max_logweight = np.max(logweights)
-            temp = np.exp(logweights - max_logweight)
-            p = temp / np.sum(temp)
-        return p
+        return np.softmax(self.lr_value * self.cum_reward_estimates)
+        # if np.isinf(self.lr_value):
+        #     p = self.unif
+        # else:
+        #     logweights = self.lr_value * self.cum_reward_estimates
+        #     max_logweight = np.max(logweights)
+        #     temp = np.exp(logweights - max_logweight)
+        #     p = temp / np.sum(temp)
+        # return p
 
     def lr_update(self):
         self.lr_value = np.sqrt(np.log(self.K) / (self.K * self.alg_time))
@@ -121,7 +122,7 @@ class Exp3(FTRLCanvas):
 
 class AdaHedgeExp3(Exp3):
     """
-        The AdaHedge learning rate update applied to the EXP3 algorithm.
+    The AdaHedge learning rate update applied to the EXP3 algorithm.
     """
 
     def __init__(self, K, M=0, **params):
@@ -230,7 +231,7 @@ class AdaHedgeExp3ExtraExp(AdaHedgeExp3):
 
 class AdaFTRLTsallis(FTRLCanvas):
     """
-        Requires that rewards be smaller than M.
+    Requires that rewards be smaller than M.
     """
 
     def __init__(self, K, M=0, sym=False, proxy=False, **params):
@@ -256,7 +257,7 @@ class AdaFTRLTsallis(FTRLCanvas):
 
     def _mix_gap_comp(self, ell, p, eta):
         """
-            Computes the generalized mixability gap
+        Computes the generalized mixability gap
         """
         pvar, lvar, etavar = (
             cp.Parameter(self.K, nonneg=True),
@@ -338,7 +339,7 @@ class FastAdaFTRLTsallis(AdaFTRLTsallis):
         self.verb = False
 
     def _comp_p(self, losses, speed, n_stops, verb=False):
-        r""" Returns $ argmin_p <p, l >  + H_{{1/2}}(p)$ using Newton's method"""
+        r"""Returns $ argmin_p <p, l >  + H_{{1/2}}(p)$ using Newton's method"""
         c = np.min(losses) - 1
         count = 0
         while count < n_stops:
@@ -354,8 +355,8 @@ class FastAdaFTRLTsallis(AdaFTRLTsallis):
 
     def _fast_mix_gap_comp(self, ell, p, eta):
         """
-            computes max( < p_t - p, l> - B_{H1/2}(p, p_t) )
-            using _comp_p as a subroutine
+        computes max( < p_t - p, l> - B_{H1/2}(p, p_t) )
+        using _comp_p as a subroutine
         """
         h_of_p = -2 * np.sum(np.sqrt(p))
         grad_h_of_p = -1 / np.sqrt(p)
@@ -419,7 +420,7 @@ class FastAdaFTRLTsallis(AdaFTRLTsallis):
 
 class FastFTRLTsallis(FastAdaFTRLTsallis):
     """
-        Assumes rewards are smaller than M
+    Assumes rewards are smaller than M
     """
 
     def __init__(self, K, M=0, sym=False, **params):
@@ -431,7 +432,7 @@ class FastFTRLTsallis(FastAdaFTRLTsallis):
 
 class FTRLTsallis(AdaFTRLTsallis):
     """
-        Assumes rewards are smaller than M
+    Assumes rewards are smaller than M
     """
 
     def __init__(self, K, M=0, sym=False, **params):

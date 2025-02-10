@@ -3,9 +3,9 @@ import numpy as np
 
 class ContBand:
     """
-        Semi-abstract class for continuous bandit problems. To use this you need to:
-        - implement the self._compute_mean_reward method,
-        - compute the maximal value of the mean reward and set self.m .
+    Semi-abstract class for continuous bandit problems. To use this you need to:
+    - implement the self._compute_mean_reward method,
+    - compute the maximal value of the mean reward and set self.m .
     """
 
     def __init__(self, noise="gaussian", noise_sig=0.25):
@@ -58,7 +58,7 @@ class ContBand:
 
 
 class PeakBandit(ContBand):
-    r""" simplest $L, \alpha$ - Hölder function """
+    r"""simplest $L, \alpha$ - Hölder function"""
 
     def __init__(self, m, x, L, alpha):
         super().__init__()
@@ -72,7 +72,7 @@ class PeakBandit(ContBand):
 
 
 class SmallPeakBandit(ContBand):
-    """ Define a bandit problem with a small peak and flat everywhere else """
+    """Define a bandit problem with a small peak and flat everywhere else"""
 
     def __init__(self, m, x, L, alpha, T, height=-1):
         super().__init__()

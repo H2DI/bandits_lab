@@ -44,11 +44,16 @@ class UniformDiscretizer(Discretizer):
         return np.random.uniform(i / self.K, (i + 1) / self.K)
 
 
+class MidpointDiscretizer(Discretizer):
+    def discrete_to_continuous(self, i):
+        return (i + 1 / 2) / self.K
+
+
 class AbstractCAB(ContAlg):
     """
-        Turn a discrete bandit algorithm into a continuous bandit algorithm.
-         discretizer
-        A canonical example is the uniform discretization
+    Turn a discrete bandit algorithm into a continuous bandit algorithm.
+     discretizer
+    A canonical example is the uniform discretization
     """
 
     def __init__(self, *, K, discrete_alg, discretizer, label=""):
@@ -73,7 +78,7 @@ class AbstractCAB(ContAlg):
 
 
 class CAB1(AbstractCAB):
-    """ Standard CAB1 algorithm with MOSS indices """
+    """Standard CAB1 algorithm with MOSS indices"""
 
     def __init__(self, moss_sig=1, label="", *, K, T):
         discrete_alg = gen_alg.MOSS_f(K, T=T, sig=moss_sig)
@@ -153,7 +158,7 @@ class MeDZO(ContAlg):
 
 #################
 class SubRoutine(ContAlg):
-    """ From Locatelli and Carpentier 2018 """
+    """From Locatelli and Carpentier 2018"""
 
     def __init__(self, exponent, delta, label=""):
         super().__init__(label=label)
@@ -206,9 +211,9 @@ class SubRoutine(ContAlg):
     def update_next_depth(self):
         self.current_depth += 1
         h = np.power(1 / 2, (self.current_depth + 1))
-        self.delta_l = self.delta * (h ** 2)
+        self.delta_l = self.delta * (h**2)
         self.blalpha = np.power(h, self.exponent)
-        self.tlalpha = 0.5 * np.log(1 / self.delta_l) / (self.blalpha ** 2)
+        self.tlalpha = 0.5 * np.log(1 / self.delta_l) / (self.blalpha**2)
 
         B = 2 * (np.sqrt(np.log(1 / self.delta_l) / (2 * self.tlalpha)) + self.blalpha)
         # Compute the active centers at next depth
@@ -237,7 +242,7 @@ class SubRoutine(ContAlg):
 
 #################
 class TreeHOO:
-    """ Tree object for the HOO algorithm """
+    """Tree object for the HOO algorithm"""
 
     def __init__(self, point=0.5, depth=1):
         self.point = point
@@ -260,7 +265,7 @@ class TreeHOO:
         self.children = TreeHOO(pleft, n + 1), TreeHOO(pright, n + 1)
 
     def find_max_b(self, path):
-        """ Returns the full path visited to find the most promising arm """
+        """Returns the full path visited to find the most promising arm"""
         path.append(self)
         if self.is_leaf:
             return path
@@ -274,7 +279,7 @@ class TreeHOO:
 
 
 class HOO(ContAlg):
-    """ HOO algorithm """
+    """HOO algorithm"""
 
     def __init__(self, T, alpha, nu=1, label=""):
         super().__init__(label=label)
@@ -321,7 +326,7 @@ class RandomPlayer(ContAlg):
 
 class AbstractCAB2(ContAlg):
     """
-        Discretize the action space and play according to the MOSS algorithm
+    Discretize the action space and play according to the MOSS algorithm
     """
 
     # distributions_function is a function (0,..., K-1) -> [0, 1]
@@ -353,7 +358,7 @@ class AbstractCAB2(ContAlg):
         N = self.alg_n_plays[arm]
         self.mean_rewards[arm] = (self.mean_rewards[arm] * (N - 1) + reward) / N
         self.indices[arm] = self.mean_rewards[arm] + np.sqrt(
-            max(0, np.log(1.0 / ((self.delta ** 2) * N))) / (2 * N)
+            max(0, np.log(1.0 / ((self.delta**2) * N))) / (2 * N)
         )
         if (self.alg_time - 1) < self.K:
             self.next_play = self.alg_time - 1
