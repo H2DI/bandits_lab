@@ -8,27 +8,22 @@ class ContAlg:
     def __init__(self, label=""):
         self.label = label
         self.alg_time = 0
-        pass
+        self.played_arms = []
+        self.rewards = []
 
     def choose_arm(self):
+        "needs to update self.played_arms"
         pass
 
-    def update(self, arm, reward):
+    def update(self, reward):
         self.alg_time += 1
-        pass
-
-    def play_once(self, bandit):
-        arm = self.choose_arm()
-        reward = bandit.play_arm(arm)
-        self.update(arm, reward)
-
-    def play_T_times(self, bandit, T):
-        for _ in range(T):
-            self.play_once(bandit)
-        return
+        self.rewards.append(reward)
 
     def reset(self):
         self.alg_time = 0
+
+        self.played_arms = []
+        self.rewards = []
 
 
 class Discretizer:
@@ -61,16 +56,14 @@ class AbstractCAB(ContAlg):
         self.K = K
         self.discrete_alg = discrete_alg
         self.discretizer = discretizer
-        self.last_discrete_arm_played = None
 
     def choose_arm(self):
         discrete_arm = self.discrete_alg.choose_arm()
-        self.last_discrete_arm_played = discrete_arm
         return self.discretizer.discrete_to_continuous(discrete_arm)
 
-    def update(self, contarm, reward):
-        super().update(contarm, reward)
-        self.discrete_alg.update(self.last_discrete_arm_played, reward)
+    def update(self, reward):
+        super().update(reward)
+        self.discrete_alg.update(reward)
 
     def reset(self):
         super().reset()

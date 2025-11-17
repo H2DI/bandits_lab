@@ -1,6 +1,6 @@
 import numpy as np
 
-import cvxpy as cp
+# import cvxpy as cp
 import math
 
 from . import optim_utils
@@ -14,10 +14,24 @@ def draw_from_p(p, K):
         raise ValueError
 
 
+def softmax(logits):
+    u = np.exp(logits - np.max(logits))
+    return u / np.sum(u)
+
+
+"""
+    Problem: 
+    arm = alg.choose_arm()
+    reward = bandit_problem.play(arm)
+    alg.update(arm, reward)
+
+"""
+
+
 class AdvAlg:
     def __init__(self, K, **params):
         self.K = K
-        self.alg_time = 0
+        self.alg_time = 1
         self.played_ps = []
         self.played_arms = []
         self.individual_rewards = []
@@ -27,23 +41,18 @@ class AdvAlg:
     def choose_p(self):
         pass
 
-    def update(self, p, arm, reward):
-        self.alg_time += 1
+    def choose_arm(self):
+        p = self.choose_p()
+        arm = draw_from_p(p, self.K)
 
         self.played_ps.append(p)
         self.played_arms.append(arm)
+        return arm
+
+    def update(self, reward):
+        self.alg_time += 1
+
         self.individual_rewards.append(reward)
-
-    def play_once(self, bandit):
-        p = self.choose_p()
-        arm = draw_from_p(p, self.K)
-        reward = bandit.play_arm(arm)
-        self.update(p, arm, reward)
-
-    def play_T_times(self, bandit, T):
-        for _ in range(T):
-            self.play_once(bandit)
-        return
 
     def reset(self):
         self.alg_time = 0
@@ -69,6 +78,9 @@ class FTRLCanvas(AdvAlg):
         self.indiv_reward_estimates = []
         self.cum_reward_estimates = np.zeros(self.K)
         self.unif = np.ones(self.K) / self.K
+        self.gamma = 0
+
+        self.lr_update()
 
     def choose_p(self):
         pass
@@ -78,14 +90,16 @@ class FTRLCanvas(AdvAlg):
         y_hat = M + (y_At - M ) / p_At
         """
         r = self.M * np.ones(self.K)
-        r[arm] += (reward - self.M) / p[arm]
+        r[arm] += (reward - self.M) / (p[arm] + self.gamma)
         return r
 
     def lr_update(self):
         pass
 
-    def update(self, p, arm, reward):
-        super().update(p, arm, reward)
+    def update(self, reward):
+        super().update(reward)
+        p = self.played_ps[-1]
+        arm = self.played_arms[-1]
         est = self.estimate_method(p, arm, reward)
         self.indiv_reward_estimates.append(est)
         self.cum_reward_estimates += est - self.M
@@ -106,18 +120,12 @@ class Exp3(FTRLCanvas):
     """
 
     def choose_p(self):
-        return np.softmax(self.lr_value * self.cum_reward_estimates)
-        # if np.isinf(self.lr_value):
-        #     p = self.unif
-        # else:
-        #     logweights = self.lr_value * self.cum_reward_estimates
-        #     max_logweight = np.max(logweights)
-        #     temp = np.exp(logweights - max_logweight)
-        #     p = temp / np.sum(temp)
-        # return p
+        return softmax(self.lr_value * self.cum_reward_estimates)
 
     def lr_update(self):
         self.lr_value = np.sqrt(np.log(self.K) / (self.K * self.alg_time))
+        # self.gamma = np.sqrt(self.K / self.alg_time)
+        self.gamma = 0
 
 
 class AdaHedgeExp3(Exp3):
@@ -140,7 +148,6 @@ class AdaHedgeExp3(Exp3):
         if np.isinf(self.lr_value):
             mix_gap = def_mix_gap
         else:
-            # v_exp = self._vector_exp(self.lr_value * reward_est)
             v_exp = np.exp(self.lr_value * reward_est)
             if any(np.isinf(v_exp)):
                 mix_gap = def_mix_gap
@@ -189,8 +196,6 @@ class AdaHedgeExp3ExtraExp(AdaHedgeExp3):
         )
 
         try:
-            # v_exp = self._vector_exp(self.lr_value * reward_est)
-            # v_exp = np.array([math.exp(x) for x in self.lr_value * reward_est])
             v_exp = np.exp(self.lr_value * reward_est)
             if np.any(np.isinf(v_exp)):
                 mix_gap = np.max(reward_est) - np.dot(p, reward_est)
@@ -201,14 +206,6 @@ class AdaHedgeExp3ExtraExp(AdaHedgeExp3):
         except OverflowError:
             mix_gap = np.max(reward_est) - np.dot(p, reward_est)
 
-        # v_exp = self._vector_exp(self.lr_value * reward_est)
-        # v_exp = np.array([math.exp(x) for x in self.lr_value * reward_est])
-        # if np.any(np.isinf(v_exp)):
-        #     mix_gap = np.max(reward_est) - np.dot(p, reward_est)
-        # else:
-        #     mix_gap = -np.dot(p, reward_est) + 1 / self.lr_value * np.log(
-        #         np.dot(p, v_exp)
-        #     )
         self.cum_mix_gap += mix_gap
         self.mix_gaps.append(mix_gap)
         if not self.finite_lr and np.isclose(self.cum_mix_gap, 0):
